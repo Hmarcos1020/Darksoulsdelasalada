@@ -19,8 +19,11 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
     private readonly HashSet<PrototypeTrainingTarget> hitTargets = new HashSet<PrototypeTrainingTarget>();
     private MaterialPropertyBlock indicatorProperties;
     private float remaining;
+    private float phaseDuration;
     public AttackPhase Phase { get; private set; }
     public bool IsAttacking => Phase != AttackPhase.Idle;
+    // Lectura para presentación: usa el mismo reloj que gobierna los impactos.
+    public float PhaseProgress => IsAttacking ? Mathf.Clamp01(1f - remaining / phaseDuration) : 0f;
 
     public void Configure(Renderer indicator) => rangeIndicator = indicator;
 
@@ -110,7 +113,8 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
     private void SetPhase(AttackPhase phase, float duration)
     {
         Phase = phase;
-        remaining = Mathf.Max(0.01f, duration);
+        phaseDuration = Mathf.Max(0.01f, duration);
+        remaining = phaseDuration;
         if (rangeIndicator == null)
             return;
         rangeIndicator.enabled = phase != AttackPhase.Idle;

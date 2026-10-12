@@ -12,6 +12,8 @@ public sealed class PrototypeTrainingTarget : MonoBehaviour
     public int Health { get; private set; }
     public int MaximumHealth => maximumHealth;
     public bool IsDefeated => Health <= 0;
+    public event System.Action<int> Damaged;
+    public event System.Action ResetCompleted;
 
     private void Awake() => ResetTarget();
 
@@ -20,15 +22,18 @@ public sealed class PrototypeTrainingTarget : MonoBehaviour
         Health = maximumHealth;
         flashRemaining = 0f;
         RefreshColor();
+        ResetCompleted?.Invoke();
     }
 
     public void TakeDamage(int amount)
     {
         if (IsDefeated || amount <= 0)
             return;
+        int previousHealth = Health;
         Health = Mathf.Max(0, Health - amount);
         flashRemaining = 0.2f;
         RefreshColor();
+        Damaged?.Invoke(previousHealth - Health);
     }
 
     private void Update()

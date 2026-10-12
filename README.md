@@ -28,7 +28,7 @@ Versionar `Assets/` con sus archivos `.meta`, `Packages/` y `ProjectSettings/`. 
 - `PrototypePlayerMovement` (`Assets/Scripts/`): lee el teclado con Input System instalado y habilitado, limita la entrada diagonal y mueve un `CharacterController` según los ejes horizontales de la cámara. Aplica gravedad explícita y `Time.deltaTime`; la velocidad inicial es 5 m/s. El jugador no tiene Rigidbody ni otro collider.
 - `PrototypeFollowCamera` (`Assets/Scripts/`): sigue en `LateUpdate` con `SmoothDamp`. Usa un desplazamiento fijo en ejes del mundo, sin heredar la rotación del jugador. Distancia, altura y suavizado se ajustan en el Inspector.
 
-La base H0 no incluía combate. H1 agrega el primer ataque, descrito más abajo. Salto, parry, stamina, IA, animaciones, Cinemachine y control de cámara con mouse permanecen fuera de este incremento.
+La base H0 no incluía combate. H1 agrega el primer ataque, descrito más abajo. Salto, parry, stamina, IA, animaciones de personaje con esqueleto, Cinemachine y control de cámara con mouse permanecen fuera de este incremento.
 
 ## Estado de validación de H0
 
@@ -88,3 +88,34 @@ El 12 de octubre de 2026 el usuario confirmó ejecución Windows, movimiento con
 ### Estado de validación de H1
 
 El 12 de octubre de 2026 Unity 6000.3.26f1 importó y compiló los scripts. Se guardó la arena y se verificó que repetir su preparación no duplica ataques ni objetivos. Las pruebas de lógica y consultas físicas terminaron con H1_VALIDATION_SUCCEEDED y sin errores ni aserciones. La build Windows terminó con éxito: 0 errores y 486 advertencias. El log contiene advertencias de shaders Sentis del paquete com.unity.ai.inference ya instalado; no se modificaron paquetes. El ejecutable base puede conservar su fecha original en una build incremental: Assembly-CSharp.dll y level0 se regeneraron con el ataque y la arena H1. Logs locales: Logs/H1Validation.log y Logs/H1WindowsBuild.log. El 12 de octubre de 2026 el usuario confirmó que pasaron las siete pruebas manuales del ejecutable: un golpe (100 a 75), botón sostenido sin repetición, fuera de alcance sin daño, dirección incorrecta sin daño, bloqueo del movimiento durante el ataque, derrota tras cuatro golpes y reinicio con R. H1 queda cerrado. El usuario señaló que la falta de animaciones dificulta comprobar visualmente el ataque; mejorar su legibilidad queda como candidato para el próximo incremento. La prueba manual no incluye colocar un obstáculo entre jugador y objetivo: ese caso se verificó con la prueba automatizada.
+
+## Incremento: lectura visual del ataque H1
+
+Objetivo: reconocer preparación, golpe y recuperación, y distinguir un impacto válido de un ataque fallido. Se conserva el combate de H1: 0,18 s de preparación, 0,12 s de ventana activa, 0,35 s de recuperación y 25 de daño.
+
+### Decisión técnica y conceptos
+
+Se eligió animación procedural de una espada hecha con cubos. Evita depender de modelos, esqueletos y clips externos en este ejercicio. `PrototypePlayerAttack.PhaseProgress` expone el progreso normalizado (0 a 1) calculado con su temporizador existente. `PrototypeAttackPresentation` lee fase y progreso en LateUpdate, interpola la posición local del pivote y su rotación mediante Quaternion.Slerp y suaviza el movimiento con Mathf.SmoothStep.
+
+El pivote es un Transform hijo del jugador. Sus coordenadas locales permiten que la espada acompañe al jugador al desplazarse y girar. Se asigna una pose calculada en cada fotograma, para evitar que se acumulen rotaciones o desplazamientos entre ataques.
+
+`PrototypeTrainingTarget` emite eventos C# locales de daño recibido y reinicio. `PrototypeHitPresentation` escucha esos eventos: muestra un destello geométrico y un número flotante con el daño efectivo, se limpia con R y cancela las suscripciones al desactivarse. El daño se decide antes de notificar a la presentación.
+
+La revisión de capturas detectó que el material Jugador heredado usaba VR/SpatialMapping/Occlusion, sin soporte para _BaseColor. Se crearon materiales URP/Lit para el jugador y el objetivo, y se asignó un material compatible al indicador. El material anterior se conserva como asset; no se modificaron paquetes. Los colores ahora permiten distinguir jugador naranja, objetivo verde y fases amarillo/rojo/azul. La espada y el destello no tienen colliders. La detección sigue usando el volumen frontal de H1; el recorrido del filo es una representación aproximada y no define contactos físicos. La marca sobre el suelo y la pérdida de vida siguen indicando cuándo y dónde puede causar daño el ataque. Un destello sobre el objetivo confirma que el daño fue aplicado.
+
+### Preparar y probar
+
+1. Fuera de Play, **Tools > Soulslike > Preparar lectura visual H1** agrega el arma, los materiales y la señal de impacto. Repetirlo no duplica componentes ni figuras.
+2. En Play o en la build Windows, mirá al jugador: debe llevar una espada provisional. Usá E/clic para ver carga, barrido y regreso a la postura inicial.
+3. Cerca del objetivo y mirando hacia él: un golpe produce destello sobre el objetivo y **-25**, además de la vida 100 a 75.
+4. Fuera de alcance o mirando en otra dirección: la espada se mueve, pero el objetivo no muestra destello ni número de daño.
+5. Repetí cuatro golpes y reiniciá con R: las poses no deben acumularse y la señal anterior debe desaparecer al reiniciar. Mantener E produce un solo ataque.
+6. Caminá y girá: el arma debe acompañar al jugador. Durante el ataque continúa el bloqueo de movimiento y giro de H1.
+
+### Validación
+
+`PrototypeCombatVisualValidation` vuelve a ejecutar las pruebas de combate y verifica poses por fase, recuperación sin deriva, animación sin alterar daño, señal de impacto/reinicio/expiración y ausencia de colliders en la geometría visual. Las capturas de fases, cuando el renderizado está disponible, se guardan en Logs/H1Visual y no incluyen la UI OnGUI. No sustituyen la prueba manual de la animación en tiempo real.
+
+Estado al 12 de octubre de 2026: Unity 6000.3.26f1 importó y compiló los scripts. Pasaron la regresión H1 y las pruebas de presentación, progreso, señales de daño efectivo, expiración/reinicio y suscripciones. Repetir la preparación no duplica los componentes visuales; arma y señal no tienen colliders. Se generaron e inspeccionaron capturas de reposo, preparación, impacto y recuperación en Logs/H1Visual. La build Windows terminó con éxito: 0 errores y 486 advertencias (el log incluye shaders Sentis del paquete ya instalado). Log: Logs/H1VisualValidationBuild.log. El 12 de octubre de 2026 el usuario confirmó funcionamiento correcto en tiempo real: animación sin daño fuera de alcance, destello y número -25 en golpes válidos, retorno a la postura inicial tras repetir ataques, reinicio con R y acompañamiento del arma al caminar/girar. El incremento de lectura visual queda cerrado. La espada continúa representando de forma aproximada la acción; el volumen frontal de H1 sigue determinando los impactos.
+
+Referencias para profundizar: [Quaternion.Slerp](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Quaternion.Slerp.html), [Mathf.SmoothStep](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Mathf.SmoothStep.html) y [LateUpdate](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/MonoBehaviour.LateUpdate.html), documentación de Unity 6.3.
