@@ -1,0 +1,43 @@
+# Carpetas generadas por Unity
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# Compilaciones y archivos empaquetados
+/[Bb]uild/
+/[Bb]uilds/
+*.apk
+*.aab
+*.unitypackage
+
+# Archivos generados por IDEs
+/.vs/
+/.idea/
+*.csproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+
+# Metadatos exclusivos de archivos generados
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# Archivos del sistema y registros de fallos
+.DS_Store
+Thumbs.db
+sysinfo.txt
+
+# Se conservan Assets/, Packages/, ProjectSettings/ y los .meta de assets.
+/.vscode/
