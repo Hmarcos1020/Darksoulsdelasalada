@@ -119,3 +119,48 @@ La revisión de capturas detectó que el material Jugador heredado usaba VR/Spat
 Estado al 12 de octubre de 2026: Unity 6000.3.26f1 importó y compiló los scripts. Pasaron la regresión H1 y las pruebas de presentación, progreso, señales de daño efectivo, expiración/reinicio y suscripciones. Repetir la preparación no duplica los componentes visuales; arma y señal no tienen colliders. Se generaron e inspeccionaron capturas de reposo, preparación, impacto y recuperación en Logs/H1Visual. La build Windows terminó con éxito: 0 errores y 486 advertencias (el log incluye shaders Sentis del paquete ya instalado). Log: Logs/H1VisualValidationBuild.log. El 12 de octubre de 2026 el usuario confirmó funcionamiento correcto en tiempo real: animación sin daño fuera de alcance, destello y número -25 en golpes válidos, retorno a la postura inicial tras repetir ataques, reinicio con R y acompañamiento del arma al caminar/girar. El incremento de lectura visual queda cerrado. La espada continúa representando de forma aproximada la acción; el volumen frontal de H1 sigue determinando los impactos.
 
 Referencias para profundizar: [Quaternion.Slerp](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Quaternion.Slerp.html), [Mathf.SmoothStep](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Mathf.SmoothStep.html) y [LateUpdate](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/MonoBehaviour.LateUpdate.html), documentación de Unity 6.3.
+
+## Estabilización: escena de build y regresión repetible (H01)
+
+La auditoría detectó que la lista global habilitaba SampleScene, mientras el builder H0 compilaba la arena mediante una ruta explícita. Se corrige ProjectSettings/EditorBuildSettings.asset para que PrototypeArena sea la única escena habilitada, con el GUID de su .meta. SampleScene se conserva como asset y queda fuera de la compilación global.
+
+En Unity 6.3, EditorBuildSettings.globalScenes representa la lista global y EditorBuildSettings.scenes refleja la del perfil activo. Un perfil personalizado puede reemplazar la lista global. En File > Build Profiles, revisá Scene List: PrototypeArena debe ser la única habilitada, en índice 0. Si habilitás Override Global Scene List, mantené esa misma arena en la lista del perfil.
+
+### Objetivo y aceptación
+
+- Las listas global y del perfil activo incluyen únicamente la arena habilitada, con GUID válido.
+- La regresión de combate y presentación existente pasa sin regenerar la arena ni cambiar parámetros de gameplay.
+- Una build que lee EditorBuildSettings.scenes termina con éxito y usa PrototypeArena.
+- Los cambios no agregan paquetes ni modifican la versión del motor.
+
+### Repetir la regresión
+
+Desde PowerShell, ubicado en la raíz del proyecto y con Unity cerrado:
+
+```powershell
+.\Tools\Validate-Prototype.ps1
+```
+
+Comprueba configuración y ejecuta las pruebas existentes. No genera build ni capturas. El log queda en Logs/ProjectValidation.log. El runner evita iniciar otra instancia cuando Unity está abierto o el lockfile está en uso. Si queda un lockfile residual de una ejecución fallida, verifica acceso exclusivo sin borrarlo y deja que Unity compruebe el proyecto. Una excepción, salida de Unity distinta de cero o ausencia de marcadores de éxito hace fallar el comando.
+
+Para ejecutar lo anterior y además probar el camino que usa la lista del perfil activo:
+
+```powershell
+.\Tools\Validate-Prototype.ps1 -BuildFromSceneList
+```
+
+Requiere Windows x86_64 activo y soporte de compilación. Usa Mono temporalmente y restaura el backend al terminar. Log: Logs/ProjectValidationBuild.log. Destino separado: Builds/WindowsSceneList/SoulslikeCombatPrototype.exe. El builder H0 y su destino habitual se conservan.
+
+En el editor también podés ejecutar Tools > Soulslike > Validar proyecto y regresión, fuera de Play. El validador permite guardar/cancelar cambios y abre la arena guardada antes de crear las escenas temporales: Unity batch puede iniciar con una escena sin nombre, que impide la validación aditiva. Las pruebas usan escenas temporales de edición y pasos temporales controlados: no prueban el teclado real, el ciclo de PlayMode ni el renderizado. Son una regresión automatizada previa a Unity Test Framework/CI.
+
+### Prueba manual breve de la build de lista
+
+Abrí el ejecutable de WindowsSceneList junto con todos sus archivos generados. Debe mostrar la arena, jugador naranja, objetivo verde, arma y HUD. Probá movimiento/colisiones, un golpe cercano (100 a 75), un golpe fuera de alcance sin daño y R para reiniciar. Esta comprobación distingue configuración y compilación correctas de ejecución jugable verificada.
+
+### Riesgos registrados de la auditoría
+
+H02 (daño ligado al maniquí) se abordará al introducir jugador/enemigo con vida. H03 (arreglos en consultas físicas) requiere medir antes de optimizar. H04 conserva el volumen frontal como regla de impacto y la espada como representación aproximada. H05 se evaluará antes de ampliar entradas de combate. H06 espera una segunda variante de ataque. H07 requiere un incremento separado para revisar dependencias y advertencias. No se introducen ahora esas refactorizaciones.
+
+Estado al 12 de octubre de 2026: Unity 6000.3.26f1 importó los cambios y confirmó las listas global y activa con la arena y su GUID correcto. Pasaron la regresión H1 y la regresión visual. El runner con -BuildFromSceneList terminó correctamente; el log registró PrototypeArena como entrada y SCENE_LIST_BUILD_SUCCEEDED: 0 errores, 486 advertencias y 16,21 s de build. Se verificaron el ejecutable, level0 y la referencia a Assets/Scenes/PrototypeArena.unity en globalgamemanagers. La comprobación final dejó ProjectSettings/ProjectSettings.asset sin cambios: el backend se configura solo cuando es necesario. El usuario confirmó el 12 de octubre de 2026 que la build de lista arranca la arena correcta y permite movimiento, ataque y reinicio. H01 queda cerrado con validación automatizada y manual.
+
+Referencias: [EditorBuildSettings.globalScenes](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/EditorBuildSettings-globalScenes.html) y [EditorBuildSettings.scenes](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/EditorBuildSettings-scenes.html), Unity 6.3.
