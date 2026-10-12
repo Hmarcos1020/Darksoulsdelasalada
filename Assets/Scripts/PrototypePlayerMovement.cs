@@ -11,6 +11,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
     [SerializeField] private float gravity = -20f;
 
     private CharacterController controller;
+    private PrototypePlayerAttack attack;
     private float verticalSpeed;
 
     public void Configure(Transform movementCamera)
@@ -21,6 +22,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
     private void Awake()
     {
         controller = GetComponent<CharacterController>();
+        attack = GetComponent<PrototypePlayerAttack>();
         if (cameraTransform == null)
         {
             Debug.LogError("Asigná la cámara a PrototypePlayerMovement.", this);
@@ -39,6 +41,9 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
             input.y = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1f : 0f)
                 - (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1f : 0f);
         }
+        // El ataque bloquea dirección, pero la gravedad continúa.
+        if (attack != null && attack.IsAttacking)
+            input = Vector2.zero;
         input = Vector2.ClampMagnitude(input, 1f);
 
         Vector3 forward = Vector3.ProjectOnPlane(cameraTransform.forward, Vector3.up).normalized;
