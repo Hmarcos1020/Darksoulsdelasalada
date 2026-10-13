@@ -30,7 +30,9 @@ public static class PrototypeProjectValidation
         PrototypeCombatVisualValidation.Validate();
         if (UnityEngine.Object.FindFirstObjectByType<PrototypeEnemyAttack>() != null)
             PrototypeDuelValidation.Validate();
-        Debug.Log("PROJECT_VALIDATION_SUCCEEDED: listas global y activa apuntan a la arena; regresión H1 y visual aprobadas.");
+        if (UnityEngine.Object.FindFirstObjectByType<PrototypePlayerDodge>() != null)
+            PrototypeDodgeValidation.Validate();
+        Debug.Log("PROJECT_VALIDATION_SUCCEEDED: listas global y activa apuntan a la arena; regresiones de sus sistemas aprobadas.");
     }
 
     // Valida el camino de compilación que consulta la lista, no el builder con escena fija de H0.

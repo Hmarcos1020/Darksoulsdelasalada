@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>Ataque frontal: preparación, impacto y recuperación sin encadenar entradas.</summary>
 [DefaultExecutionOrder(-100)]
@@ -27,9 +26,8 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
 
     private void Update()
     {
-        bool pressed = (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
-            || (Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame);
-        if (pressed)
+        var commands = GetComponent<PrototypePlayerInput>();
+        if (commands != null && commands.AttackPressed)
             TryAttack();
         Advance(Time.deltaTime);
     }
@@ -38,7 +36,8 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
     {
         var health = GetComponent<PrototypeHealth>();
         var duel = GetComponent<PrototypeDuelSession>();
-        if (!isActiveAndEnabled || IsAttacking || (health != null && health.IsDefeated) || (duel != null && duel.HasEnded))
+        var dodge = GetComponent<PrototypePlayerDodge>();
+        if (!isActiveAndEnabled || IsAttacking || (dodge != null && dodge.IsBusy) || (health != null && health.IsDefeated) || (duel != null && duel.HasEnded))
             return false;
         hitTargets.Clear();
         SetPhase(PrototypeAttackPhase.Windup, windupDuration);

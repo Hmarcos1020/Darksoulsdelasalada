@@ -25,7 +25,7 @@ Versionar `Assets/` con sus archivos `.meta`, `Packages/` y `ProjectSettings/`. 
 ## Responsabilidades de los scripts
 
 - `PrototypeArenaBuilder` (`Assets/Editor/`): herramienta del editor que crea una arena de 20 × 20 metros con cuatro paredes, tres obstáculos, luz, jugador y cámara. Guarda materiales como assets y conecta las referencias automáticamente. No se ejecuta durante el juego.
-- `PrototypePlayerMovement` (`Assets/Scripts/`): lee el teclado con Input System instalado y habilitado, limita la entrada diagonal y mueve un `CharacterController` según los ejes horizontales de la cámara. Aplica gravedad explícita y `Time.deltaTime`; la velocidad inicial es 5 m/s. El jugador no tiene Rigidbody ni otro collider.
+- `PrototypePlayerMovement` (`Assets/Scripts/`): consume dirección lógica desde `PrototypePlayerInput`, limita la entrada diagonal y mueve un `CharacterController` según los ejes horizontales de la cámara. Combina caminar/esquivar y gravedad en una única llamada a Move; la velocidad al caminar es 5 m/s. El jugador no tiene Rigidbody ni otro collider.
 - `PrototypeFollowCamera` (`Assets/Scripts/`): sigue en `LateUpdate` con `SmoothDamp`. Usa un desplazamiento fijo en ejes del mundo, sin heredar la rotación del jugador. Distancia, altura y suavizado se ajustan en el Inspector.
 
 La base H0 no incluía combate. H1 agrega el primer ataque, descrito más abajo. Salto, parry, stamina, IA, animaciones de personaje con esqueleto, Cinemachine y control de cámara con mouse permanecen fuera de este incremento.
@@ -203,3 +203,64 @@ Estado al 12 de octubre de 2026: scripts importados/compilados y arena de duelo 
 ### Observación de balance de la primera prueba
 
 El usuario observó que el enemigo es más lento que el jugador y permite atacar y retirarse durante la preparación, además de la oportunidad durante recuperación. Considera válido el comportamiento para la dificultad de este prototipo. Se conservan los tiempos actuales: ataque del jugador de 0,65 s en total; enemigo con 0,8 s de preparación, 0,15 s de impacto y 1,1 s de recuperación. Esta aceptación valida el ejercicio inicial, no demuestra un balance definitivo. Reevaluar las oportunidades de ataque cuando se incorpore la primera acción defensiva, antes de aumentar dificultad o agregar variantes.
+
+
+## Primera esquiva: reposicionamiento y controles lógicos
+
+Objetivo: evitar un golpe mediante desplazamiento, conservando el compromiso temporal del combate. **Espacio** inicia una esquiva de **3 m en 0,25 s**, seguida de **0,20 s de recuperación**. Con WASD/flechas sigue la dirección relativa a la cámara, capturada al iniciar; sin dirección retrocede respecto de la orientación del jugador y conserva esa orientación. Durante desplazamiento y recuperación no se puede caminar, girar, atacar ni iniciar otra esquiva. Las paredes y obstáculos pueden acortar la distancia: no se recupera después el tramo bloqueado.
+
+Esta versión no concede invulnerabilidad y todavía no usa stamina. Si el personaje permanece dentro del volumen del golpe, recibe daño incluso durante la esquiva. Ataque y esquiva se excluyen durante todas sus fases; no se encolan pulsaciones rechazadas y mantener el botón no repite la acción. Si E/clic y Espacio se pulsan en el mismo fotograma estando libre, tiene prioridad la esquiva. La muerte o el final del duelo cancelan la esquiva; R cancela acciones y restaura vida, posición, orientación y gravedad.
+
+### Responsabilidades y conceptos
+
+- `PrototypeCombat.inputactions`: mapa pequeño con Move, Attack, Dodge y Restart. Usa el Input System **1.20.0 ya instalado**, sin paquetes nuevos. Conserva WASD, flechas, E, clic y R; agrega Espacio. El asset de entrada de la plantilla permanece disponible.
+- `PrototypePlayerInput`: adapta dispositivos a comandos lógicos. Clona el asset por jugador, habilita/deshabilita su mapa y expone la dirección y pulsaciones nuevas. Los sistemas de juego no deciden qué tecla usar.
+- `PrototypePlayerDodge`: captura dirección y administra desplazamiento/recuperación. No mueve directamente el collider ni modifica salud. Señal celeste bajo el jugador al desplazarse y tenue durante recuperación; la cápsula todavía no tiene una animación de rodar.
+- `PrototypePlayerMovement`: es el único componente que llama a `CharacterController.Move`. Combina caminar o desplazamiento de esquiva con gravedad; las colisiones físicas resuelven la posición final. Consume el tiempo de desplazamiento de cada frame, incluyendo pasos que cruzan fases, para conservar la distancia a 30/120 FPS. Si acaba recuperación dentro de un frame, caminar se reanuda en el siguiente.
+- `PrototypePlayerAttack` y `PrototypeDuelSession`: consumen comandos lógicos y cancelan/bloquean acciones según sus estados. Se mantienen los tiempos del enemigo aceptados en el duelo anterior.
+
+### Preparar, validar y probar
+
+La arena guardada ya incluye la esquiva. Fuera de Play, **Tools > Soulslike > Preparar primera esquiva** permite reproducir la configuración; repetirlo no duplica componentes ni agrega colliders a la señal visual.
+
+Con Unity y el juego cerrados, `powershell -ExecutionPolicy Bypass -File .\Tools\Validate-Prototype.ps1` comprueba la escena, regresión H1/visual, duelo y esquiva, y luego entra/sale de Play automáticamente para comprobar Input Actions con teclado/mouse virtuales. `-BuildFromSceneList` también compila Windows. El runner debe confirmar los marcadores de las suites y el resultado del proceso. Dentro del editor, **Tools > Soulslike > Validar proyecto y entrada en Play** ejecuta el mismo flujo sin cerrar Unity. Guardá tus cambios antes de correrlo; las posiciones y dispositivos de prueba se restauran y no se guardan los cambios de Play.
+
+`PrototypeDodgeValidation` usa una escena temporal y un CharacterController real: distancia a 30/120 FPS y en un paso largo, dirección de cámara, retroceso, recuperación, exclusión con ataque, pared, gravedad, cancelación por derrota/victoria y reinicio. También compara dos golpes reales: esquivar lateralmente en espacio libre evita el golpe; una pared que impide salir del volumen permite recibirlo. `PrototypeInputValidation` prueba el mapa importado dentro de Play, pulsaciones simultáneas, teclas alternativas combinadas, diagonal, E/clic, R y ausencia de repetición/cola. La prueba ajusta temporalmente el foco de entrada para batch y lo restaura; no usa flags internos del paquete.
+
+La build actual de prueba está en `Builds/WindowsSceneList/SoulslikeCombatPrototype.exe`; conservar sus archivos y carpeta Data juntos.
+
+Protocolo manual de aceptación (aprobado por el usuario; observaciones al final):
+
+1. Con la ventana enfocada, pulsar Espacio con dirección y sin dirección. Comprobar dirección, retroceso y las dos señales; mantener Espacio debe producir una sola acción.
+2. Esquivar contra una pared y un cubo: debe detenerse sin atravesarlos ni desplazarse después para compensar.
+3. Durante ataque, intentar esquivar; durante esquiva/recuperación, intentar atacar. No debe cancelar ni ejecutar después la pulsación rechazada.
+4. Acercarse al enemigo, esperar su aviso violeta y esquivar lateralmente. En espacio libre se puede evitar daño; si un obstáculo impide salir del área, se puede recibir el golpe.
+5. Usar R durante la esquiva y tras derrota: restaura el duelo y permite repetir acciones. Confirmar también que la victoria sigue requiriendo cuatro golpes y la derrota cinco golpes enemigos.
+
+La opinión del jugador sobre distancia, recuperación y sincronización queda registrada en el cierre al final. La aceptación funcional no demuestra el balance definitivo de esta nueva acción.
+
+Referencias: [InputAction](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.20/api/UnityEngine.InputSystem.InputAction.html) y [CharacterController.Move, Unity 6.3](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/CharacterController.Move.html). Las firmas se comprueban con el paquete local 1.20.0; la documentación web de la familia 1.20 puede mostrar una revisión posterior.
+
+Estado al 12 de octubre de 2026: escena guardada y preparación repetida sin duplicados. El runner completo con -BuildFromSceneList confirmó H1, visual, duelo, esquiva e Input Actions en Play, con salida 0 (Logs/ProjectValidationBuild.log). La build de Windows terminó con 0 errores y 486 advertencias en 11,18 s. En las pruebas de edición se avanza Physics.Simulate para publicar las poses nativas del CharacterController antes de consultar golpes; el modo se restaura en finally. El runner conserva el archivo original de ajustes físicos, incluso si Unity actualiza su formato al tocar el modo de simulación. Se capturaron e inspeccionaron las señales celeste y tenue (Logs/Dodge y Logs/DodgeCapture.log); las capturas no incluyen UI OnGUI y sus posiciones se descartaron sin guardar. Se observó durante ocho segundos el arranque headless del ejecutable previo con el mismo código de juego sin excepciones de scripts (Logs/DodgePlayerSmoke.log); no valida gráficos ni controles humanos. El usuario aprobó posteriormente la prueba jugable; ver el cierre y las observaciones de sincronización a continuación.
+
+
+### Cierre de la prueba manual y observaciones
+
+El 12 de octubre de 2026 el usuario aprobó la implementación y las pruebas jugables de la primera esquiva. Considera coherente la recuperación de 0,20 s y posiblemente excesiva la distancia de 3 m. Se conservan los valores probados para cerrar este incremento; reducir la distancia será un ajuste de balance separado, que deberá volver a probarse.
+
+El usuario observó que algunas esquivas al último momento reciben daño y sospecha un desfase entre animación e impacto, pero no pudo identificar el fotograma ni confirmar un error. No se registra esa sincronización como validada. Sin invulnerabilidad, iniciar la acción no garantiza evitar un golpe: hay que salir físicamente del volumen antes de la consulta de daño.
+
+La inspección del código encuentra dos factores concretos que deben distinguirse en una reproducción:
+
+- `PrototypePlayerDodge` procesa la pulsación en Update con orden -120; `PrototypeEnemyAttack` comprueba impactos con orden -90; `PrototypePlayerMovement` aplica el desplazamiento con orden predeterminado 0. El golpe puede consultar la posición anterior al desplazamiento de ese mismo fotograma. Eso describe el orden actual; no demuestra que haya causado el caso observado.
+- El daño se consulta al entrar en Active y durante esa ventana, usando una caja frontal fija. `PrototypeAttackPresentation` representa en LateUpdate el recorrido de la espada durante Active. Ambos leen la misma fase, pero la caja no sigue el filo: puede haber daño cuando la espada apenas empieza el recorrido. La representación aproximada ya era una limitación del prototipo; falta comprobar su legibilidad en esta situación.
+
+La versión de esquiva queda aprobada con estas observaciones abiertas. Stamina sigue pendiente para limitar la repetición de acciones; no se agregó en este cierre.
+
+### Próximo hito: comprobar sincronización de esquiva e impacto
+
+Objetivo: reproducir y explicar una esquiva tardía antes de modificar reglas de daño o añadir stamina. Conceptos: orden de Update/LateUpdate, posición que consulta la física, tiempo de cada fase y diferencia entre volumen de daño y representación visual.
+
+Alcance propuesto: una herramienta de diagnóstico del combate con tiempo reducido, visualización del volumen activo y registro del fotograma/posición al iniciar esquiva y aplicar daño. Debe permitir comparar un intento con salida del volumen y otro que permanece dentro. Dificultad principal: distinguir lectura visual, orden de ejecución y tiempo físico; las pruebas anteriores con pasos controlados no reprodujeron el orden completo de un frame real.
+
+Criterios de aceptación: poder identificar qué posición y fase determinaron cada golpe; reproducir los dos casos a 30 y 120 FPS; comprobar que el volumen y la señal visible comunican la misma ventana. Si se confirma una inconsistencia, corregirla con una prueba de regresión y nueva validación jugable. Después se decidirá el ajuste de distancia y se introducirá stamina con costos de ataque/esquiva y regeneración, en su propio incremento.

@@ -1,0 +1,193 @@
+{
+  "controlSchemes": [],
+  "name": "PrototypeCombat",
+  "maps": [
+    {
+      "name": "Prototype",
+      "id": "fa94fe43-cb81-45b8-9c04-bbd1bec14d1a",
+      "bindings": [
+        {
+          "name": "Dirección",
+          "isPartOfComposite": false,
+          "isComposite": true,
+          "interactions": "",
+          "action": "Move",
+          "id": "edb7f5ef-f93a-4033-8e5e-86539c834255",
+          "path": "2DVector",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "up",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "02dc5d71-65cc-4ad1-8502-4a24078b968b",
+          "path": "<Keyboard>/w",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "up",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "9e8051d5-896a-42e0-9ad7-6fc563f83b05",
+          "path": "<Keyboard>/upArrow",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "down",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "ff7c670a-f3c5-4edc-9156-f60e3b92fba2",
+          "path": "<Keyboard>/s",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "down",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "bc5e715b-59e0-4221-a323-f42cd3f249db",
+          "path": "<Keyboard>/downArrow",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "left",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "fbbf44b1-b3f0-427d-b651-d08408b9a578",
+          "path": "<Keyboard>/a",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "left",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "b24c6a3c-3de6-4fef-865c-dc76ed501294",
+          "path": "<Keyboard>/leftArrow",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "right",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "3d621f9e-4ebf-474f-aff9-79c8a4b55d9d",
+          "path": "<Keyboard>/d",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "right",
+          "isPartOfComposite": true,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Move",
+          "id": "ca385655-b91b-4d65-8341-e3fdb791dddb",
+          "path": "<Keyboard>/rightArrow",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "",
+          "isPartOfComposite": false,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Attack",
+          "id": "ef2ca6d1-41d3-45b2-a4db-dde214d84243",
+          "path": "<Keyboard>/e",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "",
+          "isPartOfComposite": false,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Attack",
+          "id": "a41257d7-123b-4919-b074-c94ddca2bb53",
+          "path": "<Mouse>/leftButton",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "",
+          "isPartOfComposite": false,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Dodge",
+          "id": "811df727-a3ba-4cff-b6e6-13fea142761c",
+          "path": "<Keyboard>/space",
+          "groups": "",
+          "processors": ""
+        },
+        {
+          "name": "",
+          "isPartOfComposite": false,
+          "isComposite": false,
+          "interactions": "",
+          "action": "Restart",
+          "id": "d33c7bce-3e42-4445-ab91-ff67370a11ce",
+          "path": "<Keyboard>/r",
+          "groups": "",
+          "processors": ""
+        }
+      ],
+      "actions": [
+        {
+          "processors": "",
+          "initialStateCheck": true,
+          "type": "Value",
+          "expectedControlType": "Vector2",
+          "name": "Move",
+          "id": "3e9253b8-9679-460d-aa3e-5f202440be8e",
+          "interactions": ""
+        },
+        {
+          "processors": "",
+          "initialStateCheck": false,
+          "type": "Button",
+          "expectedControlType": "Button",
+          "name": "Attack",
+          "id": "7e129712-ca40-48b9-84da-f77a86585b31",
+          "interactions": ""
+        },
+        {
+          "processors": "",
+          "initialStateCheck": false,
+          "type": "Button",
+          "expectedControlType": "Button",
+          "name": "Dodge",
+          "id": "08edd33d-1e96-4873-9db8-b4591c643dd0",
+          "interactions": ""
+        },
+        {
+          "processors": "",
+          "initialStateCheck": false,
+          "type": "Button",
+          "expectedControlType": "Button",
+          "name": "Restart",
+          "id": "40e8e204-a338-491f-94b9-4792b0b50a2f",
+          "interactions": ""
+        }
+      ]
+    }
+  ]
+}

@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 /// <summary>Reinicio del ejercicio y cancelación de acciones al terminar el duelo.</summary>
 [DefaultExecutionOrder(-200)]
@@ -33,10 +32,12 @@ public sealed class PrototypeDuelSession : MonoBehaviour
 
     private void Update()
     {
-        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+        var commands = player != null ? player.GetComponent<PrototypePlayerInput>() : null;
+        if (commands != null && commands.RestartPressed)
             Restart();
         if (player != null && enemy != null && (player.IsDefeated || enemy.IsDefeated))
         {
+            player.GetComponent<PrototypePlayerDodge>()?.CancelDodge();
             playerAttack.CancelAttack();
             enemyAttack.CancelAttack();
         }
@@ -46,6 +47,7 @@ public sealed class PrototypeDuelSession : MonoBehaviour
     {
         if (player == null || enemy == null)
             return;
+        player.GetComponent<PrototypePlayerDodge>()?.CancelDodge();
         playerAttack.CancelAttack();
         enemyAttack.CancelAttack();
         var controller = player.GetComponent<CharacterController>();

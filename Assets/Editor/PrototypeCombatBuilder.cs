@@ -2,6 +2,7 @@ using System;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 /// <summary>Agrega el primer ejercicio de combate conservando la arena existente.</summary>
 public static class PrototypeCombatBuilder
@@ -19,6 +20,14 @@ public static class PrototypeCombatBuilder
         PrototypePlayerMovement movement = UnityEngine.Object.FindFirstObjectByType<PrototypePlayerMovement>();
         if (movement == null || movement.gameObject.scene != scene)
             throw new InvalidOperationException("No se encontró el jugador de la arena.");
+        var inputAsset = AssetDatabase.LoadAssetAtPath<InputActionAsset>("Assets/PrototypeCombat.inputactions");
+        if (inputAsset == null)
+            throw new InvalidOperationException("Falta PrototypeCombat.inputactions.");
+        var commands = movement.GetComponent<PrototypePlayerInput>();
+        if (commands == null)
+            commands = movement.gameObject.AddComponent<PrototypePlayerInput>();
+        commands.Configure(inputAsset);
+        EditorUtility.SetDirty(commands);
         var attack = movement.GetComponent<PrototypePlayerAttack>();
         if (attack == null)
             attack = movement.gameObject.AddComponent<PrototypePlayerAttack>();
