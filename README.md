@@ -65,7 +65,7 @@ Durante el ataque se bloquean desplazamiento horizontal y giro, mientras el Char
 ### Responsabilidades
 
 - `PrototypePlayerAttack`: entrada, fases temporales y consulta física frontal. Deduplica objetivos durante cada golpe y verifica obstáculos entre jugador y contacto. Los tiempos, el daño y el volumen son configurables en el Inspector.
-- `PrototypeTrainingTarget`: vida, destello blanco al recibir daño, estado de derrota y reinicio. Usa MaterialPropertyBlock sin modificar los materiales compartidos.
+- `PrototypeTrainingTarget`: presentación del color y destello del objetivo. En el primer duelo se extrajo su vida, daño y eventos a `PrototypeHealth`, compartido con el jugador. Usa MaterialPropertyBlock sin modificar materiales compartidos.
 - `PrototypeCombatHUD`: controles y estado visible para el ejercicio. UI provisional con OnGUI.
 - `PrototypeCombatBuilder`: agrega y guarda el ejercicio desde el editor sin reconstruir la arena.
 - `PrototypeCombatValidation`: verifica fases y consultas físicas en una escena temporal sin guardar. Separa el tiempo de la lectura de teclado para simular distintos pasos; no simula interacción real ni renderizado.
@@ -99,7 +99,7 @@ Se eligió animación procedural de una espada hecha con cubos. Evita depender d
 
 El pivote es un Transform hijo del jugador. Sus coordenadas locales permiten que la espada acompañe al jugador al desplazarse y girar. Se asigna una pose calculada en cada fotograma, para evitar que se acumulen rotaciones o desplazamientos entre ataques.
 
-`PrototypeTrainingTarget` emite eventos C# locales de daño recibido y reinicio. `PrototypeHitPresentation` escucha esos eventos: muestra un destello geométrico y un número flotante con el daño efectivo, se limpia con R y cancela las suscripciones al desactivarse. El daño se decide antes de notificar a la presentación.
+`PrototypeHealth` emite eventos C# locales de daño recibido y reinicio (extraídos desde `PrototypeTrainingTarget` al introducir el primer duelo). `PrototypeHitPresentation` escucha esos eventos: muestra un destello geométrico y un número flotante con el daño efectivo, se limpia con R y cancela las suscripciones al desactivarse. El daño se decide antes de notificar a la presentación.
 
 La revisión de capturas detectó que el material Jugador heredado usaba VR/SpatialMapping/Occlusion, sin soporte para _BaseColor. Se crearon materiales URP/Lit para el jugador y el objetivo, y se asignó un material compatible al indicador. El material anterior se conserva como asset; no se modificaron paquetes. Los colores ahora permiten distinguir jugador naranja, objetivo verde y fases amarillo/rojo/azul. La espada y el destello no tienen colliders. La detección sigue usando el volumen frontal de H1; el recorrido del filo es una representación aproximada y no define contactos físicos. La marca sobre el suelo y la pérdida de vida siguen indicando cuándo y dónde puede causar daño el ataque. Un destello sobre el objetivo confirma que el daño fue aplicado.
 
@@ -164,3 +164,42 @@ H02 (daño ligado al maniquí) se abordará al introducir jugador/enemigo con vi
 Estado al 12 de octubre de 2026: Unity 6000.3.26f1 importó los cambios y confirmó las listas global y activa con la arena y su GUID correcto. Pasaron la regresión H1 y la regresión visual. El runner con -BuildFromSceneList terminó correctamente; el log registró PrototypeArena como entrada y SCENE_LIST_BUILD_SUCCEEDED: 0 errores, 486 advertencias y 16,21 s de build. Se verificaron el ejecutable, level0 y la referencia a Assets/Scenes/PrototypeArena.unity en globalgamemanagers. La comprobación final dejó ProjectSettings/ProjectSettings.asset sin cambios: el backend se configura solo cuando es necesario. El usuario confirmó el 12 de octubre de 2026 que la build de lista arranca la arena correcta y permite movimiento, ataque y reinicio. H01 queda cerrado con validación automatizada y manual.
 
 Referencias: [EditorBuildSettings.globalScenes](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/EditorBuildSettings-globalScenes.html) y [EditorBuildSettings.scenes](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/EditorBuildSettings-scenes.html), Unity 6.3.
+
+## Primer duelo: enemigo inmóvil y vida del jugador
+
+Objetivo: completar un bucle pequeño de acercarse, leer una amenaza, apartarse, aprovechar recuperación y ganar/perder. El enemigo permanece en su posición; activa un ataque cuando el jugador está a 2,2 m o menos. Prepara durante 0,8 s, golpea durante 0,15 s y se recupera durante 1,1 s. Fija la dirección al iniciar la preparación; caminar hacia un costado o alejarse permite evitar el impacto. Cada golpe válido causa 20 de daño al jugador.
+
+Ambos personajes tienen 100 de vida. El ataque del jugador conserva 25 de daño y sus tiempos de H1. Cuatro golpes derrotan al enemigo; cinco golpes enemigos derrotan al jugador. Un personaje derrotado deja de atacar. El jugador derrotado deja de desplazarse horizontalmente y de girar; se mantiene la gravedad.
+
+### Conceptos y responsabilidades
+
+- `PrototypeHealth` administra vida, daño efectivo y eventos locales para ambos personajes. Resuelve H02 con composición: recibir daño ya no exige el tipo de maniquí. No se agregan atributos, resistencias ni jerarquías de herencia.
+- `PrototypeTrainingTarget` conserva la presentación de color/destello del objetivo y el reinicio local de H1 cuando no tiene ataque enemigo; delega salud al nuevo componente.
+- `PrototypeMeleeHitQuery` reutiliza volumen frontal, deduplicación por golpe y comprobación de obstáculos. Se conservan las consultas que generan arreglos; H03 sigue pendiente de medición.
+- `PrototypeAttackPhase` es la enumeración común. Las dos máquinas de estados conservan sus responsabilidades de entrada y decisiones; ambas exponen progreso para la animación procedural.
+- `PrototypeEnemyAttack` decide cuándo iniciar, fija orientación y administra sus fases. Su recuperación deja una oportunidad para atacar; recibir daño no interrumpe un ataque salvo que cause derrota.
+- `PrototypeAttackPresentation` puede representar jugador o enemigo mediante referencias explícitas; no aplica daño. La espada del enemigo es rosa y su preparación se anuncia con área violeta, impacto rojo y recuperación celeste.
+- `PrototypeHitPresentation` escucha la salud de cualquiera de los dos; el jugador muestra -20 al recibir un golpe y el enemigo -25. La HUD muestra ambas vidas, fases, victoria o derrota.
+- `PrototypeDuelSession` procesa R para cancelar acciones, restaurar vidas y posiciones, reiniciar gravedad y ajustar la cámara al jugador.
+
+### Preparación y regresión
+
+Fuera de Play, Tools > Soulslike > Preparar duelo inmóvil agrega las referencias y figuras necesarias a la arena existente. Repetir el menú no duplica enemigo, salud ni sesión. El spawn del jugador queda fuera de la distancia de activación. No hay persecución, esquiva, stamina, parry ni aprendizaje de patrones en este incremento.
+
+El runner Tools/Validate-Prototype.ps1 conserva la regresión H1 y visual. Si la arena contiene el enemigo, también ejecuta PrototypeDuelValidation: activación por distancia, tiempo de aviso, daño único, dirección fija, evasión caminando, obstáculos, 30/120 FPS, derrota de ambos, bloqueo del movimiento y reinicio. Son pruebas de edición con tiempo controlado, previas a suites PlayMode y CI.
+
+### Criterios de aceptación y prueba manual
+
+1. Al arrancar, HUD con ambas vidas 100/100; enemigo en espera y arma rosa.
+2. Acercarse y quedarse quieto: área violeta, golpe y vida del jugador 100 a 80, con -20. Mantenerse cerca permite repetir hasta derrota; entonces no puede moverse ni atacar.
+3. Acercarse y apartarse durante la preparación: el enemigo golpea en la dirección inicial y no causa daño fuera de su volumen.
+4. Atacar cerca: enemigo 100 a 75; cuatro golpes válidos causan victoria y detienen su ofensiva.
+5. R durante preparación, tras victoria o tras derrota: restaura las dos vidas y posiciones, limpia señales y cancela golpes pendientes. Permite volver a moverse y atacar.
+
+Riesgos a evaluar jugando: legibilidad del área violeta respecto del área del jugador, tiempo de reacción y correspondencia aproximada entre espada y volumen frontal. Ajustaremos parámetros después de probar el duelo antes de sumar otra acción defensiva.
+
+Estado al 12 de octubre de 2026: scripts importados/compilados y arena de duelo guardada; repetir la preparación no duplicó enemigo, sesión ni salud. Pasaron la regresión H1, la visual y DUEL_VALIDATION_SUCCEEDED. La build desde la lista terminó con 0 errores y 486 advertencias, en 54,04 s; log Logs/DuelValidationBuild.log. El ejecutable inició durante ocho segundos en modo headless sin excepciones de scripts (Logs/DuelPlayerSmoke.log); esta comprobación no valida gráficos ni controles. Se capturaron e inspeccionaron aviso, impacto y recuperación (Logs/Duel y Logs/DuelCapture.log), sin UI OnGUI. Los cambios de las capturas se descartaron sin guardar. El 12 de octubre de 2026 el usuario confirmó margen suficiente para reaccionar al aviso y una ventana aprovechable durante recuperación. También confirmó victoria tras cuatro golpes, derrota tras cinco golpes enemigos con bloqueo de controles y reinicio completo con R. El incremento del primer duelo queda cerrado con validación automatizada, arranque y prueba manual.
+
+### Observación de balance de la primera prueba
+
+El usuario observó que el enemigo es más lento que el jugador y permite atacar y retirarse durante la preparación, además de la oportunidad durante recuperación. Considera válido el comportamiento para la dificultad de este prototipo. Se conservan los tiempos actuales: ataque del jugador de 0,65 s en total; enemigo con 0,8 s de preparación, 0,15 s de impacto y 1,1 s de recuperación. Esta aceptación valida el ejercicio inicial, no demuestra un balance definitivo. Reevaluar las oportunidades de ataque cuando se incorpore la primera acción defensiva, antes de aumentar dificultad o agregar variantes.

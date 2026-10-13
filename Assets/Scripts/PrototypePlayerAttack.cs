@@ -6,8 +6,6 @@ using UnityEngine.InputSystem;
 [DefaultExecutionOrder(-100)]
 public sealed class PrototypePlayerAttack : MonoBehaviour
 {
-    public enum AttackPhase { Idle, Windup, Active, Recovery }
-
     [SerializeField, Min(0.01f)] private float windupDuration = 0.18f;
     [SerializeField, Min(0.01f)] private float activeDuration = 0.12f;
     [SerializeField, Min(0.01f)] private float recoveryDuration = 0.35f;
@@ -16,12 +14,12 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
     [SerializeField] private Vector3 hitboxHalfExtents = new Vector3(0.7f, 0.85f, 0.7f);
     [SerializeField] private Renderer rangeIndicator;
 
-    private readonly HashSet<PrototypeTrainingTarget> hitTargets = new HashSet<PrototypeTrainingTarget>();
+    private readonly HashSet<PrototypeHealth> hitTargets = new HashSet<PrototypeHealth>();
     private MaterialPropertyBlock indicatorProperties;
     private float remaining;
     private float phaseDuration;
-    public AttackPhase Phase { get; private set; }
-    public bool IsAttacking => Phase != AttackPhase.Idle;
+    public PrototypeAttackPhase Phase { get; private set; }
+    public bool IsAttacking => Phase != PrototypeAttackPhase.Idle;
     // Lectura para presentación: usa el mismo reloj que gobierna los impactos.
     public float PhaseProgress => IsAttacking ? Mathf.Clamp01(1f - remaining / phaseDuration) : 0f;
 
@@ -38,19 +36,27 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
 
     public bool TryAttack()
     {
-        if (!isActiveAndEnabled || IsAttacking)
+        var health = GetComponent<PrototypeHealth>();
+        var duel = GetComponent<PrototypeDuelSession>();
+        if (!isActiveAndEnabled || IsAttacking || (health != null && health.IsDefeated) || (duel != null && duel.HasEnded))
             return false;
         hitTargets.Clear();
-        SetPhase(AttackPhase.Windup, windupDuration);
+        SetPhase(PrototypeAttackPhase.Windup, windupDuration);
         return true;
     }
 
     // Separado de la lectura de entrada para validar tiempos con pasos controlados.
     private void Advance(float deltaTime)
     {
+        var health = GetComponent<PrototypeHealth>();
+        if (health != null && health.IsDefeated)
+        {
+            CancelAttack();
+            return;
+        }
         if (!IsAttacking)
             return;
-        if (Phase == AttackPhase.Active)
+        if (Phase == PrototypeAttackPhase.Active)
             DetectHits();
         remaining -= Mathf.Max(0f, deltaTime);
         while (IsAttacking && remaining <= 0f)
@@ -58,79 +64,47 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
             float overflow = -remaining;
             switch (Phase)
             {
-                case AttackPhase.Windup:
-                    SetPhase(AttackPhase.Active, activeDuration);
+                case PrototypeAttackPhase.Windup:
+                    SetPhase(PrototypeAttackPhase.Active, activeDuration);
                     // También muestrea si un fotograma largo atraviesa toda la ventana activa.
                     DetectHits();
                     break;
-                case AttackPhase.Active:
-                    SetPhase(AttackPhase.Recovery, recoveryDuration);
+                case PrototypeAttackPhase.Active:
+                    SetPhase(PrototypeAttackPhase.Recovery, recoveryDuration);
                     break;
                 default:
-                    SetPhase(AttackPhase.Idle, 0f);
+                    SetPhase(PrototypeAttackPhase.Idle, 0f);
                     break;
             }
             remaining -= overflow;
         }
     }
 
-    private void DetectHits()
-    {
-        Vector3 origin = transform.position + Vector3.up * hitboxOffset.y;
-        Vector3 center = transform.TransformPoint(hitboxOffset);
-        Collider[] contacts = Physics.OverlapBox(center, hitboxHalfExtents, transform.rotation,
-            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
-        foreach (Collider contact in contacts)
-        {
-            PrototypeTrainingTarget target = contact.GetComponentInParent<PrototypeTrainingTarget>();
-            if (target == null || target.IsDefeated || hitTargets.Contains(target)
-                || target.transform.IsChildOf(transform))
-                continue;
-            if (IsObstructed(origin, contact, target))
-                continue;
-            hitTargets.Add(target);
-            target.TakeDamage(damage);
-        }
-    }
+    private void DetectHits() => PrototypeMeleeHitQuery.ApplyDamage(transform, hitboxOffset, hitboxHalfExtents, damage, hitTargets);
 
-    private bool IsObstructed(Vector3 origin, Collider contact, PrototypeTrainingTarget target)
-    {
-        Vector3 segment = contact.ClosestPoint(origin) - origin;
-        float distance = segment.magnitude;
-        if (distance < 0.001f)
-            return false;
-        foreach (RaycastHit hit in Physics.RaycastAll(origin, segment / distance, distance,
-            Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
-        {
-            if (hit.collider.transform.IsChildOf(transform)
-                || hit.collider.GetComponentInParent<PrototypeTrainingTarget>() == target)
-                continue;
-            return true;
-        }
-        return false;
-    }
-
-    private void SetPhase(AttackPhase phase, float duration)
+    private void SetPhase(PrototypeAttackPhase phase, float duration)
     {
         Phase = phase;
         phaseDuration = Mathf.Max(0.01f, duration);
         remaining = phaseDuration;
         if (rangeIndicator == null)
             return;
-        rangeIndicator.enabled = phase != AttackPhase.Idle;
+        rangeIndicator.enabled = phase != PrototypeAttackPhase.Idle;
         if (indicatorProperties == null)
             indicatorProperties = new MaterialPropertyBlock();
-        Color color = phase == AttackPhase.Windup ? Color.yellow
-            : phase == AttackPhase.Active ? Color.red : new Color(0.2f, 0.6f, 1f);
+        Color color = phase == PrototypeAttackPhase.Windup ? Color.yellow
+            : phase == PrototypeAttackPhase.Active ? Color.red : new Color(0.2f, 0.6f, 1f);
         indicatorProperties.SetColor("_BaseColor", color);
         rangeIndicator.SetPropertyBlock(indicatorProperties);
     }
 
-    private void OnDisable()
+    public void CancelAttack()
     {
         hitTargets.Clear();
-        SetPhase(AttackPhase.Idle, 0f);
+        SetPhase(PrototypeAttackPhase.Idle, 0f);
     }
+
+    private void OnDisable() => CancelAttack();
 
     private void OnDrawGizmosSelected()
     {

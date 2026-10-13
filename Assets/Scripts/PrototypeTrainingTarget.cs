@@ -1,45 +1,65 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-/// <summary>Objetivo inmóvil con vida, destello de impacto y reinicio local.</summary>
-[RequireComponent(typeof(Renderer))]
+/// <summary>Color y destello del objetivo; la vida pertenece a PrototypeHealth.</summary>
+[RequireComponent(typeof(Renderer), typeof(PrototypeHealth))]
 public sealed class PrototypeTrainingTarget : MonoBehaviour
 {
-    [SerializeField, Min(1)] private int maximumHealth = 100;
+    private PrototypeHealth health;
     private Renderer targetRenderer;
     private MaterialPropertyBlock properties;
     private float flashRemaining;
-    public int Health { get; private set; }
-    public int MaximumHealth => maximumHealth;
-    public bool IsDefeated => Health <= 0;
-    public event System.Action<int> Damaged;
-    public event System.Action ResetCompleted;
 
-    private void Awake() => ResetTarget();
-
-    public void ResetTarget()
+    public void Configure(PrototypeHealth source)
     {
-        Health = maximumHealth;
-        flashRemaining = 0f;
-        RefreshColor();
-        ResetCompleted?.Invoke();
+        Unsubscribe();
+        health = source;
+        Subscribe();
+        ResetColor();
     }
 
-    public void TakeDamage(int amount)
+    private void OnEnable()
     {
-        if (IsDefeated || amount <= 0)
+        health = GetComponent<PrototypeHealth>();
+        Subscribe();
+        ResetColor();
+    }
+
+    private void Subscribe()
+    {
+        if (health == null)
             return;
-        int previousHealth = Health;
-        Health = Mathf.Max(0, Health - amount);
+        Unsubscribe();
+        health.Damaged += OnDamaged;
+        health.ResetCompleted += ResetColor;
+    }
+
+    private void Unsubscribe()
+    {
+        if (health == null)
+            return;
+        health.Damaged -= OnDamaged;
+        health.ResetCompleted -= ResetColor;
+    }
+
+    private void OnDamaged(int amount)
+    {
         flashRemaining = 0.2f;
         RefreshColor();
-        Damaged?.Invoke(previousHealth - Health);
+    }
+
+    private void ResetColor()
+    {
+        flashRemaining = 0f;
+        RefreshColor();
     }
 
     private void Update()
     {
-        if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
-            ResetTarget();
+        // Conserva el reinicio local del ejercicio H1 cuando no hay un enemigo activo.
+        if (GetComponent<PrototypeEnemyAttack>() == null && Keyboard.current != null
+            && Keyboard.current.rKey.wasPressedThisFrame)
+            health.ResetHealth();
         if (flashRemaining > 0f)
         {
             flashRemaining -= Time.deltaTime;
@@ -49,13 +69,17 @@ public sealed class PrototypeTrainingTarget : MonoBehaviour
 
     private void RefreshColor()
     {
+        if (health == null)
+            return;
         if (targetRenderer == null)
             targetRenderer = GetComponent<Renderer>();
         if (properties == null)
             properties = new MaterialPropertyBlock();
-        Color color = IsDefeated ? Color.gray : flashRemaining > 0f
+        Color color = health.IsDefeated ? Color.gray : flashRemaining > 0f
             ? Color.white : new Color(0.1f, 0.8f, 0.45f);
         properties.SetColor("_BaseColor", color);
         targetRenderer.SetPropertyBlock(properties);
     }
+
+    private void OnDisable() => Unsubscribe();
 }

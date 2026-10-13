@@ -4,14 +4,14 @@ using UnityEngine;
 [DefaultExecutionOrder(100)]
 public sealed class PrototypeHitPresentation : MonoBehaviour
 {
-    [SerializeField] private PrototypeTrainingTarget target;
+    [SerializeField] private PrototypeHealth target;
     [SerializeField] private Transform impactGraphic;
     [SerializeField, Min(0.01f)] private float visibleDuration = 0.45f;
     private float remaining;
     private int lastDamage;
     private GUIStyle damageStyle;
 
-    public void Configure(PrototypeTrainingTarget source, Transform graphic)
+    public void Configure(PrototypeHealth source, Transform graphic)
     {
         Unsubscribe();
         target = source;

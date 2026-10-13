@@ -26,9 +26,9 @@ public static class PrototypeCombatValidation
             var attack = player.AddComponent<PrototypePlayerAttack>();
             GameObject targetObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
             targetObject.transform.localScale = Vector3.one * 0.6f;
-            var target = targetObject.AddComponent<PrototypeTrainingTarget>();
+            var target = targetObject.AddComponent<PrototypeHealth>();
             targetObject.transform.position = player.transform.position + Vector3.forward * 1.5f;
-            target.ResetTarget();
+            target.ResetHealth();
             // Dos colliders del mismo objetivo deben producir un solo daño.
             targetObject.AddComponent<SphereCollider>().radius = 0.5f;
             Physics.SyncTransforms();
@@ -41,25 +41,25 @@ public static class PrototypeCombatValidation
             Step(attack, 0.02f);
             Check(target.Health == 75, "Daño repetido por fotograma o collider");
             Step(attack, 0.15f);
-            Check(attack.Phase == PrototypePlayerAttack.AttackPhase.Recovery && !attack.TryAttack(), "Recuperación no bloquea entradas");
+            Check(attack.Phase == PrototypeAttackPhase.Recovery && !attack.TryAttack(), "Recuperación no bloquea entradas");
             Step(attack, 0.4f);
             Check(!attack.IsAttacking, "No vuelve a reposo");
 
             foreach (float frameTime in new[] { 1f / 30f, 1f / 120f })
             {
-                target.ResetTarget();
+                target.ResetHealth();
                 Check(attack.TryAttack(), "No inicia prueba de framerate");
                 for (int frame = 0; frame < Mathf.CeilToInt(0.8f / frameTime); frame++)
                     Step(attack, frameTime);
                 Check(target.Health == 75 && !attack.IsAttacking, "Daño o duración depende del framerate");
             }
 
-            target.ResetTarget();
+            target.ResetHealth();
             FullAttack(attack);
             Check(target.Health == 75, "Fotograma largo pierde o duplica el impacto");
             targetObject.transform.position = player.transform.position + Vector3.forward * 4f;
             Physics.SyncTransforms();
-            target.ResetTarget();
+            target.ResetHealth();
             FullAttack(attack);
             Check(target.Health == 100, "Golpea fuera de alcance");
             targetObject.transform.position = player.transform.position - Vector3.forward * 1.5f;
@@ -81,7 +81,7 @@ public static class PrototypeCombatValidation
             Check(target.Health == 0 && target.IsDefeated, "Cuatro golpes no derrotan al objetivo");
             FullAttack(attack);
             Check(target.Health == 0, "Vida negativa tras derrota");
-            target.ResetTarget();
+            target.ResetHealth();
             Check(target.Health == 100 && !target.IsDefeated, "Reinicio incorrecto");
             Check(attack.TryAttack(), "No inicia prueba de desactivación");
             attack.enabled = false;

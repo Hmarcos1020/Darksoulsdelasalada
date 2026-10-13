@@ -33,12 +33,12 @@ public static class PrototypeCombatVisualValidation
             GameObject targetObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
             targetObject.transform.position = player.transform.position + Vector3.forward * 1.5f;
             targetObject.transform.localScale = Vector3.one * 0.6f;
-            var target = targetObject.AddComponent<PrototypeTrainingTarget>();
+            var target = targetObject.AddComponent<PrototypeHealth>();
             var feedback = targetObject.AddComponent<PrototypeHitPresentation>();
             Transform graphic = new GameObject("Señal de prueba").transform;
             graphic.SetParent(target.transform, false);
             feedback.Configure(target, graphic);
-            target.ResetTarget();
+            target.ResetHealth();
             int notifications = 0;
             int actualDamage = 0;
             target.Damaged += amount => { notifications++; actualDamage = amount; };
@@ -65,13 +65,13 @@ public static class PrototypeCombatVisualValidation
             presentation.enabled = true;
             for (int iteration = 0; iteration < 6; iteration++)
             {
-                target.ResetTarget();
+                target.ResetHealth();
                 Check(attack.TryAttack(), "Ataque repetido rechazado");
                 Invoke(attack, "Advance", 1f);
                 Invoke(presentation, "ApplyPose");
                 Check(Vector3.Distance(restPosition, pivot.localPosition) < 0.001f && Quaternion.Angle(restRotation, pivot.localRotation) < 0.01f, "Deriva de pose entre ataques");
             }
-            target.ResetTarget();
+            target.ResetHealth();
             Check(!graphic.gameObject.activeSelf, "R no limpia señal de impacto");
             int before = notifications;
             target.TakeDamage(-10);
@@ -83,12 +83,12 @@ public static class PrototypeCombatVisualValidation
             Check(notifications == before, "Objetivo derrotado emite impactos adicionales");
             feedback.enabled = false;
             Invoke(feedback, "OnDisable");
-            target.ResetTarget();
+            target.ResetHealth();
             target.TakeDamage(25);
             Check(!graphic.gameObject.activeSelf, "Presentación desactivada conserva suscripción");
             feedback.enabled = true;
             Invoke(feedback, "OnEnable");
-            target.ResetTarget();
+            target.ResetHealth();
             target.TakeDamage(25);
             Check(graphic.gameObject.activeSelf, "Reactivar pierde suscripción");
             Debug.Log("H1_VISUAL_VALIDATION_SUCCEEDED: progreso, poses, ausencia de deriva, daño independiente de presentación, señales, reinicio y suscripciones.");
@@ -105,10 +105,10 @@ public static class PrototypeCombatVisualValidation
     {
         PrototypeCombatVisualBuilder.PrepareVisuals();
         PrototypeCombatVisualBuilder.PrepareVisuals();
-        Check(UnityEngine.Object.FindObjectsByType<PrototypeAttackPresentation>(FindObjectsSortMode.None).Length == 1, "Preparación duplica presentación del arma");
-        Check(UnityEngine.Object.FindObjectsByType<PrototypeHitPresentation>(FindObjectsSortMode.None).Length == 1, "Preparación duplica presentación del impacto");
+        Check(UnityEngine.Object.FindObjectsByType<PrototypeAttackPresentation>(FindObjectsSortMode.None).Length == (UnityEngine.Object.FindFirstObjectByType<PrototypeEnemyAttack>() == null ? 1 : 2), "Preparación duplica presentación del arma");
+        Check(UnityEngine.Object.FindObjectsByType<PrototypeHitPresentation>(FindObjectsSortMode.None).Length == (UnityEngine.Object.FindFirstObjectByType<PrototypeEnemyAttack>() == null ? 1 : 2), "Preparación duplica presentación del impacto");
         var attack = UnityEngine.Object.FindFirstObjectByType<PrototypePlayerAttack>();
-        var target = UnityEngine.Object.FindFirstObjectByType<PrototypeTrainingTarget>();
+        var target = UnityEngine.Object.FindFirstObjectByType<PrototypeTrainingTarget>().GetComponent<PrototypeHealth>();
         Check(attack.transform.Find("Arma provisional H1").GetComponentsInChildren<Collider>(true).Length == 0, "Arma visual tiene collider");
         Check(target.transform.Find("Señal de impacto H1").GetComponentsInChildren<Collider>(true).Length == 0, "Señal visual tiene collider");
         Check(attack.GetComponent<Renderer>().sharedMaterial.HasProperty("_BaseColor")
@@ -124,7 +124,7 @@ public static class PrototypeCombatVisualValidation
     {
         string scenePath = SceneManager.GetActiveScene().path;
         var attack = UnityEngine.Object.FindFirstObjectByType<PrototypePlayerAttack>();
-        var target = UnityEngine.Object.FindFirstObjectByType<PrototypeTrainingTarget>();
+        var target = UnityEngine.Object.FindFirstObjectByType<PrototypeTrainingTarget>().GetComponent<PrototypeHealth>();
         var presentation = attack.GetComponent<PrototypeAttackPresentation>();
         Camera camera = Camera.main;
         try
@@ -133,7 +133,7 @@ public static class PrototypeCombatVisualValidation
             camera.GetComponent<PrototypeFollowCamera>().Configure(attack.transform);
             var feedback = target.GetComponent<PrototypeHitPresentation>();
             Invoke(feedback, "OnEnable");
-            target.ResetTarget();
+            target.ResetHealth();
             Physics.SyncTransforms();
             Invoke(presentation, "ApplyPose");
             Capture(camera, "01-Reposo");
@@ -157,7 +157,7 @@ public static class PrototypeCombatVisualValidation
         }
     }
 
-    private static void Capture(Camera camera, string name)
+    public static void Capture(Camera camera, string name, string folder = "Logs/H1Visual")
     {
         var texture = new RenderTexture(1280, 720, 24);
         var pixels = new Texture2D(1280, 720, TextureFormat.RGB24, false);
@@ -174,8 +174,8 @@ public static class PrototypeCombatVisualValidation
             RenderTexture.active = texture;
             pixels.ReadPixels(new Rect(0, 0, 1280, 720), 0, 0);
             pixels.Apply();
-            Directory.CreateDirectory("Logs/H1Visual");
-            File.WriteAllBytes("Logs/H1Visual/" + name + ".png", pixels.EncodeToPNG());
+            Directory.CreateDirectory(folder);
+            File.WriteAllBytes(Path.Combine(folder, name + ".png"), pixels.EncodeToPNG());
         }
         finally
         {

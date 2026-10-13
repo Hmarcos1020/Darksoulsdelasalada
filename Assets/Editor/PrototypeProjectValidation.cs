@@ -28,6 +28,8 @@ public static class PrototypeProjectValidation
         // Las pruebas aditivas requieren una escena guardada; batch puede iniciar con Untitled.
         EditorSceneManager.OpenScene(ArenaPath, OpenSceneMode.Single);
         PrototypeCombatVisualValidation.Validate();
+        if (UnityEngine.Object.FindFirstObjectByType<PrototypeEnemyAttack>() != null)
+            PrototypeDuelValidation.Validate();
         Debug.Log("PROJECT_VALIDATION_SUCCEEDED: listas global y activa apuntan a la arena; regresión H1 y visual aprobadas.");
     }
 

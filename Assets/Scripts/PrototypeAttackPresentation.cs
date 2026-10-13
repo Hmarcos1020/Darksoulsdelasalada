@@ -5,6 +5,7 @@ using UnityEngine;
 public sealed class PrototypeAttackPresentation : MonoBehaviour
 {
     [SerializeField] private PrototypePlayerAttack attack;
+    [SerializeField] private PrototypeEnemyAttack enemyAttack;
     [SerializeField] private Transform weaponPivot;
     [SerializeField] private Vector3 restPosition = new Vector3(0.55f, -0.2f, 0.15f);
     [SerializeField] private Vector3 raisedPosition = new Vector3(0.65f, 0.5f, 0.6f);
@@ -16,6 +17,15 @@ public sealed class PrototypeAttackPresentation : MonoBehaviour
     public void Configure(PrototypePlayerAttack source, Transform pivot)
     {
         attack = source;
+        enemyAttack = null;
+        weaponPivot = pivot;
+        ApplyPose();
+    }
+
+    public void Configure(PrototypeEnemyAttack source, Transform pivot)
+    {
+        attack = null;
+        enemyAttack = source;
         weaponPivot = pivot;
         ApplyPose();
     }
@@ -24,18 +34,20 @@ public sealed class PrototypeAttackPresentation : MonoBehaviour
 
     private void ApplyPose()
     {
-        if (attack == null || weaponPivot == null)
+        if ((attack == null && enemyAttack == null) || weaponPivot == null)
             return;
-        float blend = Mathf.SmoothStep(0f, 1f, attack.PhaseProgress);
-        switch (attack.Phase)
+        var phase = attack != null ? attack.Phase : enemyAttack.Phase;
+        float progress = attack != null ? attack.PhaseProgress : enemyAttack.PhaseProgress;
+        float blend = Mathf.SmoothStep(0f, 1f, progress);
+        switch (phase)
         {
-            case PrototypePlayerAttack.AttackPhase.Windup:
+            case PrototypeAttackPhase.Windup:
                 SetPose(restPosition, raisedPosition, restAngles, raisedAngles, blend);
                 break;
-            case PrototypePlayerAttack.AttackPhase.Active:
+            case PrototypeAttackPhase.Active:
                 SetPose(raisedPosition, finishPosition, raisedAngles, finishAngles, blend);
                 break;
-            case PrototypePlayerAttack.AttackPhase.Recovery:
+            case PrototypeAttackPhase.Recovery:
                 SetPose(finishPosition, restPosition, finishAngles, restAngles, blend);
                 break;
             default:

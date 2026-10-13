@@ -12,6 +12,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
 
     private CharacterController controller;
     private PrototypePlayerAttack attack;
+    private PrototypeHealth health;
     private float verticalSpeed;
 
     public void Configure(Transform movementCamera)
@@ -23,6 +24,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
     {
         controller = GetComponent<CharacterController>();
         attack = GetComponent<PrototypePlayerAttack>();
+        health = GetComponent<PrototypeHealth>();
         if (cameraTransform == null)
         {
             Debug.LogError("Asigná la cámara a PrototypePlayerMovement.", this);
@@ -41,8 +43,15 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
             input.y = (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed ? 1f : 0f)
                 - (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed ? 1f : 0f);
         }
-        // El ataque bloquea dirección, pero la gravedad continúa.
-        if (attack != null && attack.IsAttacking)
+        AdvanceMovement(input, Time.deltaTime);
+    }
+
+    public void ResetMovement() => verticalSpeed = 0f;
+
+    private void AdvanceMovement(Vector2 input, float deltaTime)
+    {
+        // El ataque y la derrota bloquean dirección; la gravedad continúa.
+        if ((attack != null && attack.IsAttacking) || (health != null && health.IsDefeated))
             input = Vector2.zero;
         input = Vector2.ClampMagnitude(input, 1f);
 
@@ -52,13 +61,13 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
 
         if (controller.isGrounded && verticalSpeed < 0f)
             verticalSpeed = -2f;
-        verticalSpeed += gravity * Time.deltaTime;
-        controller.Move((direction * speed + Vector3.up * verticalSpeed) * Time.deltaTime);
+        verticalSpeed += gravity * deltaTime;
+        controller.Move((direction * speed + Vector3.up * verticalSpeed) * deltaTime);
 
         if (direction.sqrMagnitude > 0.001f)
         {
             Quaternion desiredRotation = Quaternion.LookRotation(direction, Vector3.up);
-            float blend = 1f - Mathf.Exp(-rotationSpeed * Time.deltaTime);
+            float blend = 1f - Mathf.Exp(-rotationSpeed * deltaTime);
             transform.rotation = Quaternion.Slerp(transform.rotation, desiredRotation, blend);
         }
     }

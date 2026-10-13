@@ -23,6 +23,9 @@ public static class PrototypeCombatBuilder
         if (attack == null)
             attack = movement.gameObject.AddComponent<PrototypePlayerAttack>();
 
+        var playerHealth = movement.GetComponent<PrototypeHealth>();
+        if (playerHealth == null)
+            playerHealth = movement.gameObject.AddComponent<PrototypeHealth>();
         Transform indicatorTransform = movement.transform.Find("Alcance del ataque H1");
         if (indicatorTransform == null)
         {
@@ -49,10 +52,14 @@ public static class PrototypeCombatBuilder
             targetObject.GetComponent<Renderer>().sharedMaterial = indicatorRenderer.sharedMaterial;
             target = targetObject.AddComponent<PrototypeTrainingTarget>();
         }
+        var targetHealth = target.GetComponent<PrototypeHealth>();
+        if (targetHealth == null)
+            targetHealth = target.gameObject.AddComponent<PrototypeHealth>();
+        target.Configure(targetHealth);
         var hud = movement.GetComponent<PrototypeCombatHUD>();
         if (hud == null)
             hud = movement.gameObject.AddComponent<PrototypeCombatHUD>();
-        hud.Configure(attack, target);
+        hud.Configure(attack, targetHealth);
         EditorUtility.SetDirty(attack);
         EditorUtility.SetDirty(hud);
         EditorSceneManager.MarkSceneDirty(scene);

@@ -57,7 +57,7 @@ public static class PrototypeCombatVisualBuilder
         var feedback = target.GetComponent<PrototypeHitPresentation>();
         if (feedback == null)
             feedback = target.gameObject.AddComponent<PrototypeHitPresentation>();
-        feedback.Configure(target, graphic);
+        feedback.Configure(target.GetComponent<PrototypeHealth>(), graphic);
         EditorUtility.SetDirty(presentation);
         EditorUtility.SetDirty(feedback);
         AssetDatabase.SaveAssets();
