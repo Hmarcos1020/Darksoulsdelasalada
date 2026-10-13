@@ -17,19 +17,29 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
     private MaterialPropertyBlock indicatorProperties;
     private float remaining;
     private float phaseDuration;
+    [SerializeField, Min(0.01f)] private float deflectedRecoveryDuration = 0.60f;
+    private bool staggered;
+    private double staggerStart, staggerUntil, evaluatedAt;
+    private int attackSerial;
+    public bool IsStaggered => staggered && System.Math.Max(evaluatedAt, Time.timeAsDouble) < staggerUntil;
+    public float StaggerElapsed => IsStaggered ? Mathf.Max(0f, (float)(System.Math.Max(evaluatedAt, Time.timeAsDouble) - staggerStart)) : 0f;
+    public float StaggerDuration => deflectedRecoveryDuration;
+    public Vector3 HitboxCenter => transform.TransformPoint(hitboxOffset);
+    public Vector3 HitboxHalfExtents => hitboxHalfExtents;
     public PrototypeAttackPhase Phase { get; private set; }
-    public bool IsAttacking => Phase != PrototypeAttackPhase.Idle;
+    public bool IsAttacking => Phase != PrototypeAttackPhase.Idle || IsStaggered;
     // Lectura para presentación: usa el mismo reloj que gobierna los impactos.
-    public float PhaseProgress => IsAttacking ? Mathf.Clamp01(1f - remaining / phaseDuration) : 0f;
+    public float PhaseProgress => Phase != PrototypeAttackPhase.Idle ? Mathf.Clamp01(1f - remaining / phaseDuration) : 0f;
 
     public void Configure(Renderer indicator) => rangeIndicator = indicator;
 
     private void Update()
     {
+        double now = Time.timeAsDouble;
+        RefreshStagger(now);
         var commands = GetComponent<PrototypePlayerInput>();
-        if (commands != null && commands.AttackPressed)
-            TryAttack();
-        Advance(Time.deltaTime);
+        bool started = commands != null && commands.AttackPressed && TryAttack();
+        AdvanceAt(started ? 0f : Time.deltaTime, now);
     }
 
     public bool TryAttack()
@@ -37,26 +47,33 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
         var health = GetComponent<PrototypeHealth>();
         var duel = GetComponent<PrototypeDuelSession>();
         var dodge = GetComponent<PrototypePlayerDodge>();
+        if (GetComponent<PrototypePlayerParry>() is PrototypePlayerParry parry && parry.IsBusy) return false;
         if (!isActiveAndEnabled || IsAttacking || (dodge != null && dodge.IsBusy) || (health != null && health.IsDefeated) || (duel != null && duel.HasEnded))
             return false;
+        var stamina = GetComponent<PrototypeStamina>();
+        if (stamina != null && !stamina.TrySpend(PrototypeStaminaAction.Attack)) return false;
         hitTargets.Clear();
         SetPhase(PrototypeAttackPhase.Windup, windupDuration);
         return true;
     }
 
     // Separado de la lectura de entrada para validar tiempos con pasos controlados.
-    private void Advance(float deltaTime)
+    private void Advance(float deltaTime) => AdvanceAt(deltaTime, Time.timeAsDouble);
+
+    private void AdvanceAt(float deltaTime, double frameEndTime)
     {
+        deltaTime = Mathf.Max(0f, deltaTime);
+        RefreshStagger(frameEndTime);
         var health = GetComponent<PrototypeHealth>();
         if (health != null && health.IsDefeated)
         {
             CancelAttack();
             return;
         }
-        if (!IsAttacking)
+        if (IsStaggered || Phase == PrototypeAttackPhase.Idle)
             return;
         if (Phase == PrototypeAttackPhase.Active)
-            DetectHits();
+            if (DetectHits(frameEndTime - deltaTime)) return;
         remaining -= Mathf.Max(0f, deltaTime);
         while (IsAttacking && remaining <= 0f)
         {
@@ -66,7 +83,7 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
                 case PrototypeAttackPhase.Windup:
                     SetPhase(PrototypeAttackPhase.Active, activeDuration);
                     // También muestrea si un fotograma largo atraviesa toda la ventana activa.
-                    DetectHits();
+                    if (DetectHits(frameEndTime - overflow)) return;
                     break;
                 case PrototypeAttackPhase.Active:
                     SetPhase(PrototypeAttackPhase.Recovery, recoveryDuration);
@@ -79,7 +96,26 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
         }
     }
 
-    private void DetectHits() => PrototypeMeleeHitQuery.ApplyDamage(transform, hitboxOffset, hitboxHalfExtents, damage, hitTargets);
+    private bool DetectHits(double contactTime)
+    {
+        int serial = attackSerial;
+        PrototypeMeleeHitQuery.ApplyDamage(transform, hitboxOffset, hitboxHalfExtents, damage, hitTargets, contactTime);
+        return serial != attackSerial;
+    }
+    private void RefreshStagger(double now)
+    {
+        evaluatedAt = now;
+        if (staggered && now >= staggerUntil) staggered = false;
+    }
+    public bool ReceiveParry(double contactTime)
+    {
+        var health = GetComponent<PrototypeHealth>();
+        if (!isActiveAndEnabled || Phase != PrototypeAttackPhase.Active || (health != null && health.IsDefeated)) return false;
+        CancelAttack();
+        staggerStart = contactTime; staggerUntil = contactTime + deflectedRecoveryDuration; staggered = true;
+        RefreshStagger(evaluatedAt);
+        return true;
+    }
 
     private void SetPhase(PrototypeAttackPhase phase, float duration)
     {
@@ -99,6 +135,7 @@ public sealed class PrototypePlayerAttack : MonoBehaviour
 
     public void CancelAttack()
     {
+        attackSerial++; staggered = false;
         hitTargets.Clear();
         SetPhase(PrototypeAttackPhase.Idle, 0f);
     }

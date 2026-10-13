@@ -11,6 +11,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
     private CharacterController controller;
     private PrototypePlayerAttack attack;
     private PrototypePlayerDodge dodge;
+    private PrototypePlayerParry parry;
     private PrototypePlayerInput commands;
     private PrototypeHealth health;
     private float verticalSpeed;
@@ -22,6 +23,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
         controller = GetComponent<CharacterController>();
         attack = GetComponent<PrototypePlayerAttack>();
         dodge = GetComponent<PrototypePlayerDodge>();
+        parry = GetComponent<PrototypePlayerParry>();
         commands = GetComponent<PrototypePlayerInput>();
         health = GetComponent<PrototypeHealth>();
         if (cameraTransform == null)
@@ -46,7 +48,7 @@ public sealed class PrototypePlayerMovement : MonoBehaviour
     {
         deltaTime = Mathf.Max(0f, deltaTime);
         bool wasDodging = dodge != null && dodge.IsBusy;
-        bool blocked = wasDodging || (attack != null && attack.IsAttacking) || (health != null && health.IsDefeated);
+        bool blocked = wasDodging || (parry != null && parry.IsBusy) || (attack != null && attack.IsAttacking) || (health != null && health.IsDefeated);
         Vector3 direction = GetMoveDirection(blocked ? Vector2.zero : input);
         Vector3 dodgeDisplacement = dodge != null ? dodge.ConsumeDisplacement(deltaTime) : Vector3.zero;
         if (controller.isGrounded && verticalSpeed < 0f)

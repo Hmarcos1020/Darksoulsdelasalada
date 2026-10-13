@@ -20,6 +20,7 @@ public sealed class PrototypePlayerDodge : MonoBehaviour
     private float remaining;
     private MaterialPropertyBlock properties;
 
+    public event System.Action<bool, Vector3> Attempted;
     public PrototypeDodgePhase Phase { get; private set; }
     public bool IsBusy => Phase != PrototypeDodgePhase.Ready;
     public void Configure(Renderer renderer) { indicator = renderer; CancelDodge(); }
@@ -41,10 +42,20 @@ public sealed class PrototypePlayerDodge : MonoBehaviour
 
     public bool TryDodge(Vector2 intent)
     {
-        if (!isActiveAndEnabled || IsBusy || (attack != null && attack.IsAttacking)
+        var parry = GetComponent<PrototypePlayerParry>();
+        if (!isActiveAndEnabled || IsBusy || (parry != null && parry.IsBusy) || (attack != null && attack.IsAttacking)
             || (health != null && health.IsDefeated) || (duel != null && duel.HasEnded))
+        {
+            Attempted?.Invoke(false, Vector3.zero);
             return false;
+        }
         direction = movement.GetMoveDirection(intent);
+        var stamina = GetComponent<PrototypeStamina>();
+        if (stamina != null && !stamina.TrySpend(PrototypeStaminaAction.Dodge))
+        {
+            Attempted?.Invoke(false, Vector3.zero);
+            return false;
+        }
         if (direction.sqrMagnitude < 0.001f)
             direction = Vector3.ProjectOnPlane(-transform.forward, Vector3.up).normalized;
         else
@@ -53,6 +64,7 @@ public sealed class PrototypePlayerDodge : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(direction, Vector3.up);
         }
         SetPhase(PrototypeDodgePhase.Moving, travelDuration);
+        Attempted?.Invoke(true, direction);
         return true;
     }
 

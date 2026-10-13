@@ -33,9 +33,13 @@ try {
 }
 if ($unityProcess.ExitCode -ne 0) { throw ('Unity terminó con código ' + $unityProcess.ExitCode + '. Log: ' + $logPath) }
 $logText = [IO.File]::ReadAllText($logPath)
-foreach ($marker in @('H1_VALIDATION_SUCCEEDED','H1_VISUAL_VALIDATION_SUCCEEDED','DUEL_VALIDATION_SUCCEEDED','DODGE_VALIDATION_SUCCEEDED','INPUT_VALIDATION_SUCCEEDED','PROJECT_VALIDATION_SUCCEEDED')) {
+foreach ($marker in @('H1_VALIDATION_SUCCEEDED','H1_VISUAL_VALIDATION_SUCCEEDED','IMPACT_SYNC_VALIDATION_SUCCEEDED','DUEL_VALIDATION_SUCCEEDED','DODGE_VALIDATION_SUCCEEDED','INPUT_VALIDATION_SUCCEEDED','DIAGNOSTICS_VALIDATION_SUCCEEDED','PROJECT_VALIDATION_SUCCEEDED')) {
     if (!$logText.Contains($marker)) { throw ('Falta confirmar ' + $marker + '. Log: ' + $logPath) }
 }
+if (!$logText.Contains('PARRY_VALIDATION_SUCCEEDED')) { throw ('Falta confirmar PARRY_VALIDATION_SUCCEEDED. Log: ' + $logPath) }
+if (!$logText.Contains('PARRY_TIMING_VALIDATION_SUCCEEDED')) { throw ('Falta confirmar PARRY_TIMING_VALIDATION_SUCCEEDED. Log: ' + $logPath) }
+if (!$logText.Contains('STAMINA_VALIDATION_SUCCEEDED')) { throw ('Falta confirmar STAMINA_VALIDATION_SUCCEEDED. Log: ' + $logPath) }
+if (!$logText.Contains('ENEMY_PARRY_VALIDATION_SUCCEEDED')) { throw ('Falta confirmar ENEMY_PARRY_VALIDATION_SUCCEEDED. Log: ' + $logPath) }
 if ($BuildFromSceneList -and !$logText.Contains('SCENE_LIST_BUILD_SUCCEEDED')) { throw ('No se confirmó la build. Log: ' + $logPath) }
 Write-Output ('Validación aprobada. Log: ' + $logPath)
 if ($BuildFromSceneList) { Write-Output ('Ejecutable de prueba: ' + (Join-Path $projectRoot 'Builds\WindowsSceneList\SoulslikeCombatPrototype.exe')) }

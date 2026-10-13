@@ -38,8 +38,10 @@ public sealed class PrototypeDuelSession : MonoBehaviour
         if (player != null && enemy != null && (player.IsDefeated || enemy.IsDefeated))
         {
             player.GetComponent<PrototypePlayerDodge>()?.CancelDodge();
+            player.GetComponent<PrototypePlayerParry>()?.CancelParry();
             playerAttack.CancelAttack();
             enemyAttack.CancelAttack();
+            enemy.GetComponent<PrototypeEnemyParry>()?.CancelDefense();
         }
     }
 
@@ -48,6 +50,7 @@ public sealed class PrototypeDuelSession : MonoBehaviour
         if (player == null || enemy == null)
             return;
         player.GetComponent<PrototypePlayerDodge>()?.CancelDodge();
+        player.GetComponent<PrototypePlayerParry>()?.CancelParry();
         playerAttack.CancelAttack();
         enemyAttack.CancelAttack();
         var controller = player.GetComponent<CharacterController>();

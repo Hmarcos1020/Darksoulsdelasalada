@@ -264,3 +264,291 @@ Objetivo: reproducir y explicar una esquiva tardía antes de modificar reglas de
 Alcance propuesto: una herramienta de diagnóstico del combate con tiempo reducido, visualización del volumen activo y registro del fotograma/posición al iniciar esquiva y aplicar daño. Debe permitir comparar un intento con salida del volumen y otro que permanece dentro. Dificultad principal: distinguir lectura visual, orden de ejecución y tiempo físico; las pruebas anteriores con pasos controlados no reprodujeron el orden completo de un frame real.
 
 Criterios de aceptación: poder identificar qué posición y fase determinaron cada golpe; reproducir los dos casos a 30 y 120 FPS; comprobar que el volumen y la señal visible comunican la misma ventana. Si se confirma una inconsistencia, corregirla con una prueba de regresión y nueva validación jugable. Después se decidirá el ajuste de distancia y se introducirá stamina con costos de ataque/esquiva y regeneración, en su propio incremento.
+
+
+## Dirección del combate: parry para jugador y enemigo
+
+El 12 de octubre de 2026 el usuario confirmó que el parry debe formar parte del combate de **ambos** personajes. Es una mecánica central del proyecto. No requiere implementar primero un bloqueo tradicional: bloquear y hacer parry pueden ser acciones distintas. El primer parry se implementará con una ventana temporal y un resultado observable contra un golpe definido; las reglas de recepción deberán resolver el parry antes de descontar vida.
+
+La ruta incremental queda: diagnóstico/sincronización → primer parry del jugador → integración de stamina y ajustes de combate → primer parry del enemigo → reconocimiento de ofensivas repetidas del «Duelista». Los dos parrys deben tener validación jugable propia. La adaptación del Duelista se mantiene como ampliación posterior, cuando existan decisiones ofensivas suficientes para que reconocer repeticiones tenga sentido. Este incremento no implementa todavía parry, guardia ni stamina.
+
+## Diagnóstico del combate: volumen, posiciones y registro
+
+Objetivo: distinguir una esquiva que permanece dentro del alcance, una pulsación rechazada y un impacto consultado antes del movimiento del mismo fotograma. También permite comparar la ventana activa con la representación de la espada. Se conservan distancia, tiempos, daño y orden de ejecución de la versión de esquiva aprobada.
+
+### Usar la herramienta
+
+La arena guardada incluye `PrototypeCombatDiagnostics`. Se inicia oculto y con velocidad normal. **Tools > Soulslike > Preparar diagnóstico de combate**, fuera de Play, reproduce sus referencias sin reconstruir el duelo; repetir el menú no duplica el componente.
+
+- **F3** muestra/oculta el diagnóstico y habilita el registro. El contorno amarillo representa el volumen del futuro golpe durante preparación; rojo durante Active; celeste durante recuperación. Solo Active causa daño. El volumen 3D usa los mismos parámetros que la consulta física; la espada conserva su representación aproximada.
+- **F4** alterna tiempo normal y 0,2x. Ajusta también el paso físico para conservar su frecuencia en tiempo real. Al salir del modo lento o deshabilitar el componente se restauran exactamente los valores previos de `timeScale` y `fixedDeltaTime`. Ocultar con F3 conserva el modo de velocidad elegido; se puede volver a normal con F4.
+- Al recibir daño enemigo con F3 activo, se conserva el volumen de esa consulta en **naranja** y una **cruz blanca** en la posición del jugador en el momento del daño. La cruz es una referencia de posición, no la forma del collider. La HUD compara esa posición con la posición al cerrar el frame, e indica fase/progreso de la espada.
+- **R** restaura el duelo y limpia registro y marcas históricas. Mantiene visible el diagnóstico y el modo lento para repetir la prueba.
+- **F5**, con F3 activo, exporta los últimos 128 eventos a un archivo `.log` nuevo. La HUD muestra el nombre y la consola/Player.log la ruta completa con `COMBAT_TRACE_EXPORTED`. En este proyecto Windows, la carpeta habitual es `%USERPROFILE%\AppData\LocalLow\DefaultCompany\SoulslikeCombatPrototype\CombatDiagnostics`. No modifica un registro previo ni envía archivos por red.
+
+El registro contiene fotograma, tiempo de juego y real, esquiva aceptada/rechazada, daño efectivo, posición del jugador y volumen consultado. En LateUpdate agrega la posición final, fase/progreso enemigo y orientación local de su espada, después de actualizar la presentación. Las líneas con el mismo `f=` pertenecen al mismo frame. Si la fase cambia dentro de un paso largo, la pose final puede corresponder a una fase posterior a la que produjo el daño; se conservan ambas observaciones.
+
+### Responsabilidades y límites
+
+`PrototypeMeleeHitQuery` publica un snapshot al terminar cada consulta, con volumen y daño efectivo. `PrototypePlayerDodge` publica intentos aceptados/rechazados. `PrototypeCombatDiagnostics` observa esos eventos y los de vida, dibuja contornos sin colliders, conserva un registro circular y controla únicamente el modo de tiempo de diagnóstico. `PrototypePlayerInput` agrega Diagnostics, SlowMotion y ExportTrace al mapa existente; mantiene las acciones y GUID anteriores.
+
+La herramienta explica la regla actual: el enemigo consulta daño antes de que el motor aplique desplazamiento en ese frame; pulsar Espacio no concede invulnerabilidad. No determina por sí sola si esa regla es la más justa ni prueba cuál fue el caso reportado por el usuario. Para decidir un cambio se necesita una reproducción concreta. La caja fija tampoco demuestra contacto del filo: esa diferencia continúa siendo una limitación visual conocida.
+
+### Validación y prueba jugable
+
+El runner `Tools/Validate-Prototype.ps1` conserva las suites previas y exige `DIAGNOSTICS_VALIDATION_SUCCEEDED`. Dentro de Play, la prueba de entrada verifica F3/F4/F5 y que mantener una tecla no repita un toggle. `PrototypeDiagnosticsValidation` ejecuta pasos controlados de 1/30 y 1/120 s en el orden actual: intento de esquiva → consulta enemiga → movimiento → pose → observación. Compara posición al daño y al cierre, reproduce salida temprana sin daño y esquiva bloqueada con daño, exporta un registro en Logs, verifica R, restauración de tiempos previos, suscripciones y límite de 128 eventos. Estos pasos no equivalen a una grabación de la interacción humana ni fijan los FPS reales de la aplicación.
+
+Prueba manual para cerrar el incremento:
+
+1. Activar F3 y F4, reiniciar con R. Acercarse al enemigo: el contorno amarillo anuncia preparación y el rojo indica la ventana activa. Comparar la espada con el volumen.
+2. Esquivar lateralmente durante preparación con espacio libre: salir del volumen permite evitar el daño. Comprobar que la acción se registra como aceptada.
+3. Repetir esquivando muy tarde y, por separado, contra un obstáculo. Si se recibe daño, revisar cruz blanca, contorno naranja y las dos posiciones de la HUD. Guardar con F5 antes de usar R.
+4. Intentar esquivar durante un ataque y comprobar «rechazada» en el registro exportado. Mantener F3/F4 no debe alternar repetidamente.
+5. Volver a velocidad normal con F4, ocultar F3 y comprobar que el duelo conserva su comportamiento. R limpia las marcas y permite repetir.
+
+Referencias de Unity 6.3: [Time.timeScale](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/Time-timeScale.html) y [LineRenderer](https://docs.unity3d.com/6000.3/Documentation/ScriptReference/LineRenderer.html).
+
+Estado al 12 de octubre de 2026: preparación repetida sin duplicados. La primera prueba encontró un recurso de render creado prematuramente; se corrigió su inicialización. Los contornos usan un material URP/Unlit para que su color sea legible sin depender de la luz. La build final terminó con 0 errores y 486 advertencias en 17,83 s (Logs/DiagnosticsValidationBuild.log). En la misma ejecución se confirmaron H1, visual, duelo, esquiva, entrada en Play y DIAGNOSTICS_VALIDATION_SUCCEEDED con salida 0. Las muestras registraron daño usando x=300,000 y cierre en x=300,400 con dt=1/30, y x=300,100 con dt=1/120. Es evidencia de los pasos controlados en el orden actual, no una reproducción del intento original del usuario. El ejecutable final inició ocho segundos en headless sin excepciones de scripts (Logs/DiagnosticsPlayerSmoke.log). El usuario comprobó el diagnóstico y exportó registros humanos; se aceptó la herramienta y se observó un desfase visual de impacto, abordado en el incremento de sincronización siguiente.
+
+Se capturaron e inspeccionaron los contornos de preparación e impacto con URP (Logs/Diagnostics y Logs/DiagnosticsCapture.log); la captura exige daño real de 20 y su registro. Estas imágenes no incluyen la HUD OnGUI. Las marcas históricas tienen profundidad y pueden quedar tapadas por el personaje hasta apartarse; las posiciones numéricas siguen disponibles en HUD/registro. Las posiciones de captura se descartaron sin guardar y se conservó el archivo de ajustes físicos.
+
+
+## Corrección de la señal visual al comenzar el daño
+
+El registro humano `combate-20261013-013522-519-b11269.log` reprodujo el problema: la esquiva se aceptó en f=6673; en f=6674 el jugador recibió 20 de daño al entrar en Active con progreso 0. La pose al cerrar ese frame tenía progreso activo 0,007 y la espada casi conservaba su orientación elevada. El jugador seguía dentro del alcance de la caja con su cápsula, así que el daño cumplía la regla física, pero la animación comunicaba el impacto demasiado tarde.
+
+`PrototypeAttackPresentation` ahora divide Windup en dos tramos: el primer 70 % levanta el arma desde reposo; el último 30 % la acerca a una pose de contacto. Active empieza en esa pose, continúa hasta la posición final del recorrido y Recovery vuelve al reposo. SmoothStep y Slerp mantienen continuidad entre tramos y fases. Esto se aplica tanto al jugador como al enemigo.
+
+La pose de contacto aproxima la hoja al frente y a la altura del volumen anunciado: posición local (0,65; -0,15; 0,5), orientación (5°; -20°; 0°). Es configurable en el componente. No modifica la caja ni convierte la hoja en un collider. Tampoco altera daño, duración de fases, orden de Update, distancia de esquiva, recuperación o reglas de invulnerabilidad.
+
+### Validación de la corrección
+
+`PrototypeImpactSyncValidation` verifica ambos atacantes en una escena temporal. Comprueba que la preparación no causa daño, que la pose anterior al impacto converge a contacto, que al comenzar Active con progreso 0 se aplica el daño esperado y la espada está en contacto, que no hay salto al recuperar y que se restaura reposo. También cruza la frontera de daño con pasos de 1/30 y 1/120 s. El runner exige `IMPACT_SYNC_VALIDATION_SUCCEEDED` junto con las suites anteriores.
+
+El reloj de gameplay sigue siendo la autoridad: la presentación lee fase/progreso y no aplica daño. Las pruebas comparan la pose renderizable después de actualizar la presentación, no contacto físico exacto entre hoja y cápsula. Un frame largo puede atravesar varias fases; se conserva el comportamiento de daño existente y no se agrega un segundo reloj de animación.
+
+Prueba jugable pendiente:
+
+1. Activar F3/F4, acercarse y observar el arma rosa: se eleva, se aproxima durante amarillo y alcanza contacto cuando el volumen pasa a rojo y puede aparecer -20.
+2. Repetir con el ataque del jugador: la hoja blanca debe alcanzar la pose de contacto al comenzar la ventana roja y aplicar -25.
+3. Esquivar temprano en espacio libre debe seguir evitando daño. Una esquiva tardía que conserva solapamiento puede recibirlo; esta corrección visual no concede inmunidad ni cambia el orden de movimiento/impacto.
+4. Comprobar recuperación, R y ciclos repetidos sin deriva. Si persiste una lectura confusa, guardar F5 antes de R para revisar el nuevo registro.
+
+Después de aceptar la señal de impacto, el siguiente incremento será el primer parry del jugador contra este golpe definido. El parry del enemigo y la adaptación del Duelista conservan su lugar en la ruta del proyecto.
+
+Estado al 12 de octubre de 2026: Unity importó la corrección y confirmó IMPACT_SYNC_VALIDATION_SUCCEEDED para jugador/enemigo, además de las suites H1, visual, duelo, esquiva, diagnóstico e Input Actions en Play. El runner con -BuildFromSceneList terminó con salida 0 y build Windows con 0 errores, 486 advertencias y 44,75 s (Logs/ProjectValidationBuild.log). El ejecutable inició ocho segundos en headless sin excepciones de scripts (Logs/ImpactSyncPlayerSmoke.log); esto no valida la percepción visual del usuario. La percepción de esta señal aún necesita confirmación humana detallada. Posteriormente el usuario solicitó continuar con el primer parry del jugador; la prueba de ese incremento incluye volver a observar el instante del impacto.
+
+La inspección visual llevó a mantener el agarre de contacto hacia el costado (x local 0,65), para evitar que la aproximación quedara excesivamente oculta por las cápsulas. Se volvió a ejecutar la regresión completa y compilar esa versión; el tiempo de daño se conserva.
+
+Se capturaron e inspeccionaron elevación, aproximación con vida 100 y primer impacto con vida 80 (Logs/ImpactSync y Logs/ImpactSyncCapture.log). La transición de pose es continua entre las dos últimas capturas y el contorno cambia de amarillo a rojo. Las imágenes no incluyen HUD OnGUI y las cápsulas todavía pueden ocultar parte de la hoja al tocarse. Las posiciones de captura se descartaron sin guardar y se conservó DynamicsManager.asset.
+
+## Primer parry del jugador
+
+El usuario solicitó continuar con el parry del jugador después de incorporar la sincronización de impacto. La comprobación humana detallada de esa sincronización no quedó registrada; la nueva prueba jugable deberá observar también el instante de daño y desvío.
+
+Objetivo del incremento: anticipar un golpe frontal del enemigo inmóvil, pulsar una defensa breve y conseguir una oportunidad de contraataque. El jugador decide cuándo atacar después del desvío. El daño del contraataque sigue siendo 25.
+
+### Reglas y controles
+
+Q o clic derecho inicia una acción por pulsación. Mantener el botón no sostiene defensa ni repite la acción. El intento tiene 0,06 s de preparación amarilla, 0,18 s activos en azul y 0,30 s de recuperación. Al acertar se entra inmediatamente en esa recuperación con señal blanca. La placa es una señal provisional sin collider; el volumen del enemigo continúa siendo la autoridad sobre el alcance.
+
+Durante Active se pueden desviar los golpes del `PrototypeEnemyAttack` actual dentro de un cono frontal de ±60° respecto al jugador. El atacante debe estar delante, alcanzar realmente la cápsula y tener el camino libre de obstáculos. Pulsar sin contacto no produce un acierto. En preparación, recuperación, por detrás o fuera del cono, se recibe el daño habitual si el golpe alcanza. La dirección queda fijada por la orientación al iniciar la acción; conviene mirar al enemigo antes de pulsar.
+
+Un acierto evita los 20 de daño, cancela el golpe completo y deja al enemigo expuesto durante 1,20 s, con indicador naranja. Tras recuperar, pulsar E o clic izquierdo dentro de alcance ejecuta el contraataque normal. El enemigo retoma su preparación al terminar la apertura. No hay daño ni contraataque automático.
+
+Ataque, esquiva y parry se excluyen durante toda su ejecución y recuperación. Caminar y girar se bloquean durante el parry; la gravedad continúa. Cuando llegan las tres pulsaciones en un mismo frame libre, el orden explícito es parry → esquiva → ataque. Una pulsación rechazada no se encola. R, derrota, victoria o deshabilitar el componente cancelan defensa; R también elimina la apertura enemiga y restablece la vida.
+
+Estos valores son iniciales para aprender timing. Se conservan los tiempos, alcance y daño existentes del ataque y esquiva. El parry del enemigo, stamina y adaptación del Duelista siguen en los incrementos siguientes de la ruta acordada.
+
+### Decisión técnica
+
+Se eligió interceptar la recepción en `PrototypeMeleeHitQuery` después de comprobar solapamiento, obstáculos y daño único, antes de `TakeDamage`. Hacer inmune al jugador desde su componente de vida permitiría proteger golpes fuera del cono y mezclaría vida con decisiones defensivas. Una animación tampoco debe decidir por separado cuándo se acepta el golpe: defensa y ataque usan fases de gameplay.
+
+`PrototypePlayerParry` administra la ventana y orientación; `PrototypeEnemyAttack.ReceiveParry` cancela su ataque y administra la apertura; el motor conserva la única llamada a `CharacterController.Move`. La integración reconoce explícitamente el ataque enemigo de este prototipo. Al incorporar parry del enemigo u otros tipos de daño habrá que revisar esa recepción compartida con casos concretos, sin añadir ahora un sistema genérico de combate.
+
+La apertura se representa como `IsExposed` y un temporizador independiente de las fases del golpe; durante ella `Phase` es Idle, pero el enemigo está ocupado. Al cancelar dentro de una consulta se sale inmediatamente de la lista de contactos y del avance del ataque. El tiempo sobrante de un frame que cruzó Windup no se resta a la apertura recién creada: evita un golpe diferido o consumir accidentalmente la recompensa del parry.
+
+El sistema muestrea estados discretos por frame; una pulsación que aparece después de una consulta ya ejecutada no revierte daño. Un frame muy largo que atraviesa toda la ventana defensiva puede perderla. Las señales son geometría provisional, y el arma/volumen mantienen la aproximación documentada; la validación del timing percibido corresponde a la prueba jugable.
+
+### Preparación y diagnóstico
+
+La escena guardada incluye un solo `PrototypePlayerParry` y una «Señal de parry» sin collider. `Tools > Soulslike > Preparar parry del jugador`, fuera de Play, reproduce la configuración sin reconstruir el duelo. El mapa existente agrega Parry con Q/clic derecho y conserva las acciones, bindings y GUID previos.
+
+F3 habilita diagnóstico, F4 reduce el tiempo a 0,2x y F5 exporta el registro antes de R. El registro distingue PARRY aceptado/rechazado, PARRY exitoso, daño recibido con fase defensiva y consultas con `parrys=1; daño=0` (los campos no necesariamente son consecutivos). Incluye posición/frente al intentar y el estado de apertura enemiga. Al desviar, la consulta cancela el ataque antes de publicar el resultado, por lo que el enemigo aparece en Idle con apertura activa: esa fase registrada es posterior a la recepción.
+
+### Validación y aceptación jugable
+
+`PrototypeParryValidation` se ejecuta en Play sobre los componentes reales de la arena, en una zona temporal con suelo y obstáculo. Usa el mismo orden defensa → ataque → motor con pasos de 1/30 y 1/120 s, prueba acierto frontal, fallo temprano/tardío, cono y espalda, pared, colliders duplicados, ausencia de daño diferido, contraataque manual de 25, exclusión de acciones, gravedad, R, muerte/victoria y overflow. `PrototypeInputValidation` comprueba Q/clic derecho con dispositivos virtuales, prioridad simultánea, mantener sin repetir, rechazo sin cola y R. Finalmente restaura escena, dispositivos, tiempo y simulación; el runner conserva los bytes originales de los ajustes físicos.
+
+Para validar jugabilidad:
+
+1. Abrir `Assets/Scenes/PrototypeArena.unity` y entrar en Play, o ejecutar `Builds/WindowsSceneList/SoulslikeCombatPrototype.exe`. Enfocar la ventana. Acercarse y mirar al enemigo verde; usar R para empezar de nuevo.
+2. Activar F3/F4 para practicar. Durante el final del aviso violeta, pulsar Q: la placa pasa de amarillo a azul. Si el impacto llega durante azul, aparece blanco/ACIERTO y naranja en el enemigo; la vida debe conservarse. El instante inicial para probar es aproximadamente 0,1 s de juego antes del golpe, no el comienzo del aviso. A 0,2x los tiempos aparentes duran cinco veces más.
+3. Esperar la recuperación del jugador y pulsar E/clic izquierdo: el enemigo pierde 25 mientras sigue expuesto. Confirmar que el enemigo vuelve a preparar otro golpe después de la apertura.
+4. Repetir pulsando demasiado temprano, demasiado tarde y mirando en sentido contrario. Si el golpe alcanza, deben perderse 20; el intento fallido también obliga a recuperar. Guardar F5 antes de R si el resultado parece incoherente.
+5. Mantener Q/clic derecho produce una sola acción. Intentar Q durante ataque/esquiva y ataque/esquiva durante parry: las pulsaciones rechazadas no se ejecutan después. R durante un intento y durante apertura limpia ambos. Volver con F4 a velocidad normal y confirmar victoria, derrota y reinicio.
+
+Cierre pendiente: confirmar al menos un acierto con vida intacta y contraataque, fallos por tiempo/espalda, exclusión/reinicio y legibilidad a velocidad normal. Después se revisará el balance de la ventana y se continuará con el siguiente incremento acordado.
+
+Estado técnico: Unity confirmó PARRY_CAPTURE_SUCCEEDED y PARRY_VALIDATION_SUCCEEDED junto con H1, visual, sincronización, duelo, esquiva, diagnóstico e Input Actions en Play, con salida 0 (Logs/ParryFinalValidationBuild.log). La build de Windows terminó con 0 errores, 486 advertencias y 33,34 s. Se inspeccionaron capturas URP de preparación, ventana activa y acierto con salud 100 (Logs/Parry); muestran azul, blanco y apertura naranja, pero no incluyen HUD OnGUI. La preparación repetida dejó un solo componente y las posiciones de captura se descartaron sin guardar. La aceptación jugable del parry está pendiente.
+
+La versión final también expresa las fases del parry en español y muestra al enemigo como Expuesto durante la apertura. El runner completo con -BuildFromSceneList aprobó nuevamente todas las suites con salida 0 y compiló Windows con 0 errores, 486 advertencias y 34,75 s (Logs/ProjectValidationBuild.log). El mismo código de combate inició ocho segundos en headless sin excepciones de scripts (Logs/ParryPlayerSmoke.log); ese arranque no comprueba gráficos ni interacción humana.
+
+## Revisión de contacto y precisión del parry — 13 de octubre de 2026
+
+El usuario confirmó el funcionamiento básico y pidió revisar la permisividad antes de ajustar dificultad. Se auditó la escena guardada, no solo los valores por defecto de C#: preparación defensiva 0,06 s, ventana 0,18 s, recuperación 0,30 s, cono ±60°; enemigo con 0,80 s de preparación y 0,15 s de ejecución. Los registros humanos disponibles eran anteriores al primer parry; no se usan como evidencia de esta observación nueva.
+
+### Hallazgos y causa de la permisividad
+
+El código anterior no concedía un acierto por pulsación ni durante Windup del enemigo. Exigía una consulta de daño en Active, solapamiento con la cápsula, orientación frontal y ausencia de obstáculos. Sin embargo, la defensa seguía activa desde 60 hasta 240 ms después de pulsar. Por eso una anticipación nominal de 220 ms podía ser un acierto correcto para esa configuración. Era una decisión temporal permisiva, no evidencia de inmunidad concedida por el botón.
+
+Había además tres limitaciones concretas: la placa azul no tenía volumen defensivo y la cápsula servía como sustituto de contacto defensivo; se adelantaba el reloj del nuevo intento con el delta anterior a la pulsación; y se consultaba la fase defensiva final del frame, aunque el enemigo había alcanzado impacto dentro de ese intervalo. Esta última diferencia podía aceptar una defensa iniciada después del contacto o rechazar una que terminó después de un contacto válido. El adelanto del reloj altera los límites dependiendo del paso; no demuestra por sí solo una ventana más amplia para toda anticipación.
+
+La presentación cancelaba inmediatamente la espada a reposo al desviar. No se mostraba la pose de contacto del primer frame exitoso, lo que podía dar la impresión de neutralizar un ataque antes de que llegara. Las pruebas anteriores ejercitaban fases preparadas por separado; sus casos a 30/120 FPS no barrían anticipaciones idénticas sobre una línea temporal compartida.
+
+### Solución y parámetros
+
+La consulta de ataque revisa primero el trigger de defensa frontal y, si no hay desvío válido, consulta daño corporal. Un trigger inactivo nunca amplía la cápsula que recibe daño. El desvío requiere contacto entre el mismo volumen de ataque que gobierna el daño y el volumen defensivo, además de tiempo, cono, obstáculos y golpe aún no consumido. El contacto del escudo puede cancelar el ataque antes de alcanzar la cápsula; un contacto lateral con la cápsula que no alcance defensa sí causa daño. Se publican las transformaciones físicas antes de consultar para mantener la posición del trigger hijo actualizada.
+
+La defensa guarda el comienzo y fin de su ventana en segundos de juego. El enemigo comunica el instante lógico en que cruza a Active dentro del frame; durante Active, contactos nuevos se muestrean al comienzo del siguiente intervalo. La recepción compara ese instante con el intervalo defensivo [inicio, fin), no con la fase final de la pantalla. La pulsación empieza al ser procesada y no recibe tiempo de preparación anterior. El fallo por ventana agotada se notifica después de resolver los contactos del frame, evitando anunciar fallo y luego éxito para el mismo evento válido.
+
+Primero se reproduce la configuración de 180 ms con las nuevas reglas: 220 ms de anticipación sigue siendo válido si hay contacto frontal. Esto aísla la permisividad temporal de las correcciones espaciales y de reloj. Después se propone **120 ms activos**, conservando 60 ms de preparación y 300 ms de recuperación. El intervalo nominal aceptado pasa de (60; 240) ms a (60; 180) ms antes del contacto. Los extremos reales dependen de los límites inclusivo/exclusivo del evento y la precisión numérica; las pruebas de balance usan márgenes de 5 ms, no igualdades ambiguas.
+
+La referencia visual de este ataque es su descenso: empieza al 70 % de 0,8 s, en t=0,56 s. Con 180 ms activos, el intento más temprano podía comenzar prácticamente al inicio del descenso. Con 120 ms, el primer intento válido se desplaza hacia t=0,62 s, después de que comenzó. La nueva ventana conserva aproximadamente 3,6 frames a 30 FPS, 7,2 a 60 y 14,4 a 120. El resultado se calcula en segundos; esas cantidades describen su tamaño, no un requisito de acertar un frame concreto.
+
+Es un valor inicial fundamentado para esta animación, no una demostración de balance óptimo ni de equivalencia con otro juego. `Windup Duration`, `Active Duration`, `Recovery Duration` y `Half Angle` siguen editables en `PrototypePlayerParry`, desde Inspector fuera de Play. La migración de la escena aplica 120 ms una sola vez al añadir el volumen; volver a preparar conserva ajustes temporales posteriores. Los cambios de Inspector durante Play se descartan al salir. Volver a 180 ms permite comparar ambos valores sin cambiar arquitectura.
+
+El volumen frontal inicial mide 0,8 × 1,3 × 0,3 m y está centrado localmente en (0; 0,1; 0,65). Un contorno representa sus dimensiones reales; el rombo lateral indica el estado de la acción y no es un collider. Se conserva este indicador fuera de la cápsula para que sea legible cuando el personaje oculta parte del volumen frontal. No se agrega un sistema genérico de combate ni un Animator: se conserva la caja de ataque existente y el cono frontal. El tipo de ataque enemigo actual sigue siendo el único que admite parry.
+
+### Feedback
+
+Amarillo indica preparación, azul defensa activa, blanco desvío confirmado y rojo recuperación fallida. La HUD distingue ACIERTO y FALLO. Un acierto muestra primero la pose de contacto y luego un retroceso de 0,12 s de la espada durante la apertura; ya no vuelve inmediatamente al reposo. La presentación lee gameplay y no aplica daño.
+
+`PrototypeParryFeedback` escucha éxito/fallo y reproduce dos sonidos sintéticos provisionales de 0,12 s: uno agudo para acierto y otro grave para fallo. Tiene volumen ajustable en Inspector y conserva una sola notificación por resultado. R y cancelaciones del duelo no producen un falso resultado. Estos tonos sirven para comprobar la lectura del evento y podrán sustituirse por recursos artísticos después.
+
+F3/F5 registra intento, resultado, instante lógico de contacto y anticipación del acierto en milisegundos. El tiempo global de la línea sigue siendo el momento del callback; el campo `contacto t` permite distinguir el evento interpolado dentro del frame. El fallo distingue golpe recibido y ventana agotada sin desvío. Guardar F5 antes de R conserva el caso.
+
+### Pruebas y límites
+
+El barrido de `PrototypeParryValidation` usa el mismo impacto en t≈0,8 s y las mismas pulsaciones con pasos de 30, 60 y 120 FPS. Compara 300, 220, 185, 175, 120, 65, 55 y 20 ms antes del golpe, más 5 ms después. Con 120 ms activos, 175/120/65 ms deben acertar y el resto fallar si hay alcance. También prueba ventana que termina dentro del frame después de contacto válido, ventana que empieza después del contacto, hitch que cruza ambas, ataques sucesivos, ausencia de reversión de daño, cono/espalda, pared delante del volumen, cápsula alcanzada sin defensa, defensa alcanzada sin cápsula, colliders duplicados, contraataque, gravedad, controles, muerte/victoria/R y notificación única. Los clips deben existir y contener muestras no silenciosas.
+
+Se conservan las suites H1, visual, sincronización de impacto, duelo, esquiva, diagnóstico y entrada real del Input System en Play. El runner exige `PARRY_TIMING_VALIDATION_SUCCEEDED` además de los marcadores anteriores. Los pasos con reloj explícito validan la regla temporal; no son mediciones de latencia de un teclado real ni fijan el FPS de la aplicación. La entrada física todavía se recibe por frame, por lo que puede tener hasta un intervalo de muestreo de latencia. El contacto espacial se consulta discretamente: no se promete detección continua del filo ni inmunidad al tunneling de objetos rápidos. El enemigo actual es inmóvil y el parry bloquea locomoción, condiciones adecuadas para aislar este incremento.
+
+### Validación humana pendiente
+
+1. Usar F3/F4 para reconocer elevación y descenso. Intentar durante elevación debe agotar la defensa antes del golpe; intentar durante descenso puede acertar. Revisar contorno azul, contacto de espada, blanco/apertura naranja y sonido agudo sin perder vida.
+2. Intentar cuando el golpe ya llegó: perder 20 y no recuperar vida ni obtener apertura. Intentar demasiado temprano debe emitir fallo y permitir el daño posterior si se mantiene el alcance.
+3. Acertar y contraatacar tras recuperar: el enemigo pierde 25. Repetir otro ciclo, comprobar que el intento anterior no protege el siguiente ataque y que mantener Q no repite defensa.
+4. Volver a velocidad normal con F4 y comparar 120 ms con 180 ms desde Inspector, fuera de Play. Mantener iguales preparación, ataque y distancia; anotar intentos/aciertos y qué señal visual se usó. Validar legibilidad de éxito/fallo y volumen de los tonos.
+5. Comprobar espalda, exclusión de ataque/esquiva y R. Si hay ambigüedad, exportar F5 antes de reiniciar.
+
+El incremento técnico debe cerrarse con resultados automáticos reales y esta prueba jugable. La mejora por práctica y el balance final requieren sesiones humanas; una suite puede garantizar reglas y límites, pero no demostrar aprendizaje del jugador.
+
+Si un frame atraviesa todo el intento, su ventana se conserva hasta resolver los contactos antes de aceptar otra acción. Una prueba verifica que una pulsación nueva no reemplace un desvío histórico válido ni se encole tras ese frame.
+
+Estado técnico al 13 de octubre de 2026: Unity confirmó todas las suites anteriores, PARRY_VALIDATION_SUCCEEDED y PARRY_TIMING_VALIDATION_SUCCEEDED con salida 0; la build Windows terminó con 0 errores, 486 advertencias y 56,40 s (Logs/ParryTimingFinalValidationBuild.log). Se capturaron e inspeccionaron preparación, defensa, primer contacto desviado, reacción y ventana agotada con URP (Logs/ParryTiming). Las capturas no incluyen HUD OnGUI ni prueban que los tonos se escuchen adecuadamente; los clips sí se comprobaron en Play como no silenciosos. La escena se preparó repetidamente sin duplicar defensa y las posiciones de captura se descartaron sin guardar. Se conservaron paquetes, versiones y ajustes físicos. La confirmación humana del timing y del feedback a velocidad normal queda pendiente.
+
+## Stamina del jugador — 13 de octubre de 2026
+
+El usuario aprobó el ajuste de precisión del parry y autorizó continuar con el siguiente incremento. Se cierra funcionalmente ese ajuste con su aceptación; no se registra un experimento cuantitativo de aprendizaje ni un balance definitivo de la ventana.
+
+Objetivo: introducir una decisión de presupuesto entre ataque, esquiva y parry. Conceptos: recurso separado de las acciones, costo atómico al aceptar entrada, recuperación temporal, feedback de rechazo y pruebas de comportamiento. El enemigo mantiene el duelo inmóvil y el parry del enemigo conserva su lugar como siguiente sistema de combate después de validar stamina.
+
+### Valores iniciales y reglas
+
+| Parámetro | Valor |
+|---|---:|
+| Máximo | 100 |
+| Ataque | 20 |
+| Esquiva | 30 |
+| Parry | 15 |
+| Regeneración | 25 por segundo de juego |
+| Pausa de regeneración | 0,8 s tras dejar de actuar |
+
+Los valores permiten cuatro ataques para derrotar al enemigo con 20 puntos restantes si no se gastan defensas, o tres esquivas consecutivas que dejan 10. Parry más contraataque requiere reservar 35: un desvío exitoso ofrece una apertura, pero no devuelve energía ni garantiza que alcance para atacar. Esta diferencia hace más económica la defensa que exige timing que la esquiva, con su riesgo correspondiente. Son hipótesis de balance del prototipo, no valores finales.
+
+Una acción aceptada paga al iniciar, incluso si falla el contacto, es interrumpida por derrota o la esquiva queda bloqueada por una pared. No se vuelve a pagar al entrar en Active ni al acertar; cancelar no devuelve el costo. Un intento rechazado por acción ocupada, falta de energía o fin del duelo no descuenta energía. La pulsación rechazada no queda en cola y no se ejecuta cuando regenera el recurso: hay que volver a pulsar.
+
+La regeneración se suspende durante preparación, ejecución y recuperación de las tres acciones. Después transcurre la pausa de 0,8 s; si un paso atraviesa esa pausa se regenera solo con el tiempo sobrante. Se usan segundos de juego (`deltaTime`), por lo que F4 reduce también su velocidad aparente. Intentar una acción sin energía no reinicia la pausa. Caminar y la gravedad siguen disponibles y no consumen stamina. Victoria y derrota congelan el recurso; R restaura vida, posiciones, acciones y stamina a su máximo.
+
+El muestreo de estados del motor conserva el orden actual: stamina observa la acción antes de procesar entradas nuevas. Al terminar una acción, el primer frame observado libre empieza a consumir la pausa. La transición puede tener una diferencia de hasta un frame entre tasas de ejecución; la tasa de regeneración en reposo se valida por tiempo acumulado, no por cantidad de frames. No se cambian alcance, desplazamiento, daño, fases ni ventana de 120 ms del parry.
+
+### Decisión técnica
+
+`PrototypeStamina` es el único dueño de saldo, costos, pausa y regeneración. Cada acción consulta sus propias condiciones de inicio y después llama a `TrySpend`; solo si paga entra en su primera fase. Esto evita duplicar saldos o gastar energía por un botón que otra acción ya bloqueó. La prioridad simultánea parry → esquiva → ataque continúa y la exclusión impide cobrar más de una acción aceptada.
+
+La componente se añade al jugador de la arena guardada. Los fixtures anteriores sin ella conservan sus pruebas aisladas de ataque/esquiva; la validación nueva comprueba la integración sobre los componentes reales con stamina presente. Deshabilitar una componente existente no elimina el costo ni concede acciones gratis: se rechaza el gasto. Rehabilitarla conserva el saldo, sin recarga automática.
+
+El reinicio escucha el evento de reset de `PrototypeHealth` que ya utiliza el duelo, evitando otro lector de R. La HUD lee el recurso; el diagnóstico observa eventos de gasto y rechazo, pero no decide la disponibilidad. No se registra cada incremento de regeneración para conservar los eventos útiles del buffer de F5. No se añade un sistema genérico de estadísticas, inventario ni stamina enemiga.
+
+### Inspector y presentación
+
+`PrototypeStamina` permite ajustar `Maximum`, `Attack Cost`, `Dodge Cost`, `Parry Cost`, `Regeneration Per Second` y `Regeneration Delay` desde Inspector, fuera de Play. `Tools > Soulslike > Preparar stamina del jugador` añade la componente una sola vez y conserva ajustes al repetirse. Las pruebas de balance de esta versión usan los valores de la tabla; si se cambian para cerrar otro balance deberán actualizarse las expectativas numéricas correspondientes.
+
+La HUD agrega una barra y saldo entero, junto a E/Espacio/Q y sus costos. El saldo mostrado se redondea hacia abajo para no anunciar disponibilidad que aún no existe. Verde permite todas las acciones, amarillo permite alguna y rojo indica que no alcanza para la más barata, con los costos actuales. Un mensaje indica qué acción se rechazó y cuánto requiere; desaparece al volver a ser asequible o tras 1,2 s de juego. No altera la fase ni genera una pulsación nueva. El panel de diagnóstico se desplazó para no superponerse.
+
+Con F3 activo, F5 conserva `STAMINA gasto` con acción, costo y saldo, o `STAMINA insuficiente`. Un rechazo por exclusión de acciones sigue siendo observable en los eventos existentes de intento; no se confunde con agotamiento ni se cobra.
+
+### Validación y prueba jugable
+
+`PrototypeStaminaValidation` ejecuta sobre la arena en Play: costos únicos, intentos bloqueados sin gasto, agotamiento sin inicio/giro, pausa sin reiniciarse al rechazar, ausencia de regeneración durante acciones y de devolución al cancelar, cruce de pausa con sobrante, tasa con pasos de 30/60/120 FPS y frame largo, límites cero/máximo, caminar agotado, victoria/derrota/R, deshabilitación y mensaje de rechazo. El runner exige `STAMINA_VALIDATION_SUCCEEDED` junto a todas las suites previas, incluida la matriz temporal del parry.
+
+La prueba del Input System utiliza dispositivos virtuales para comprobar cobro único ante Q/Espacio/E simultáneos, rechazo con saldo 10, mantener botones sin ejecutar después de regenerar y una pulsación nueva que sí ejecuta y paga. Estas pruebas no sustituyen la comprobación humana de la nueva HUD ni del ritmo del duelo.
+
+Para cerrar el incremento:
+
+1. Abrir la arena y Play, o la build `Builds/WindowsSceneList/SoulslikeCombatPrototype.exe`. R debe mostrar 100. En espacio libre, atacar una vez deja 80; esquivar desde lleno deja 70; intentar parry desde lleno deja 85, acierte o falle.
+2. Pulsar Espacio tres veces, soltando y esperando cada recuperación pero sin una pausa larga entre ellas: debe quedar 10. La cuarta esquiva, ataque y parry deben rechazarse sin animación ni gasto adicional. Mantener un botón no debe activarlo cuando vuelve la energía.
+3. Caminar para alejarse y esperar: tras la pausa, la barra sube a 25/s hasta 100. Repetir con F4 permite observarlo lentamente. Una nueva pulsación cuando alcanza el costo debe funcionar.
+4. Reservar al menos 35 puntos, acertar el parry y contraatacar tras recuperar: entre las dos acciones se gastan 35 y se quitan 25 de vida al enemigo. Repetir sin reserva suficiente debe mostrar el rechazo del ataque, aunque el desvío haya sido válido.
+5. Comprobar bloqueo entre acciones, derrota, victoria y R durante recuperación. R debe restablecer 100 y limpiar el mensaje. Si hay un gasto inesperado, activar F3 y guardar F5 antes de R.
+
+Después de aceptar este presupuesto se podrá revisar su balance con el ritmo actual y avanzar al primer parry del enemigo. No se da por validada la dificultad final ni se agregan patrones adaptativos del Duelista en este incremento.
+
+Estado técnico al 13 de octubre de 2026: el runner completo con -BuildFromSceneList confirmó STAMINA_VALIDATION_SUCCEEDED, las suites previas y los comandos en Play, con salida 0 (Logs/ProjectValidationBuild.log). Windows compiló con 0 errores, 486 advertencias y 62,46 s. El barrido en reposo produjo aproximadamente 50 de stamina tras 2,4 s desde saldo 10 a 30/60/120 FPS, incluyendo la pausa inicial de 0,8 s. La preparación repetida dejó una sola componente. No se modificaron paquetes ni ajustes de combate del parry aprobado. La nueva HUD, la legibilidad del mensaje y el balance requieren comprobación humana; no se afirma una inspección gráfica automática de OnGUI.
+
+## Primer parry del enemigo — 13 de octubre de 2026
+
+El usuario autorizó continuar después de stamina y pidió publicar el prototipo en GitHub. Este incremento añade una defensa enemiga observable y verificable. La validación humana de stamina y del nuevo duelo sigue siendo necesaria para cerrar su balance; autorizar continuar/publicar no se registra como una medición de esas pruebas.
+
+### Secuencia inicial y respuestas
+
+El enemigo inmóvil alterna un turno defensivo y un ataque normal mientras el jugador permanece dentro de su distancia de activación de 2,2 m. El turno defensivo tiene preparación de 0,25 s en ámbar, ventana de 0,20 s en cian y recuperación de 0,55 s en gris si no consigue desviar. Fija su orientación al iniciar la defensa. Se puede atacar antes de su ventana, durante recuperación o desde la espalda. La señal aparece en el enemigo verde y el contorno representa su volumen frontal.
+
+Un acierto exige contacto real del volumen de ataque del jugador con el volumen defensivo enemigo dentro de la ventana temporal y del cono frontal de ±60°, sin obstáculos. Un cuerpo alcanzado fuera de la defensa puede recibir daño; la defensa puede desviar antes de que el filo aproximado alcance la cápsula. El enemigo no observa la tecla E ni conoce una pulsación futura: su secuencia es fija, no adaptativa. No se agregan persecución, nuevos ataques ni stamina enemiga.
+
+Si desvía, el golpe del jugador se cancela completo, el enemigo conserva su vida y la señal pasa a blanco con un sonido distinto del parry del jugador. Los 20 de stamina ya gastados no se devuelven. El jugador recupera el arma durante 0,60 s: no puede caminar, girar, atacar, esquivar ni hacer parry, pero la gravedad continúa. Una entrada rechazada durante este intervalo no queda en cola.
+
+Después del desvío, el enemigo inicia su ataque normal con los 0,80 s de aviso y los 20 de daño existentes. No aplica daño automático por el parry. La diferencia entre recuperación del jugador y preparación enemiga deja aproximadamente 0,20 s para reaccionar después de recuperar, antes del impacto. Las pruebas demuestran tanto una salida lateral con esquiva como un parry propio contra esa respuesta; la comodidad de esa oportunidad requiere validación humana a velocidad normal.
+
+Si el jugador desvía la respuesta, el enemigo sigue quedando expuesto durante 1,20 s, y se puede contraatacar con los 25 de daño existentes. Su defensa no funciona mientras está expuesto ni durante su ataque normal. R restaura el turno inicial, vida, stamina y elimina desvío/respuesta pendiente. Victoria, derrota y deshabilitación cancelan la defensa.
+
+Los tiempos y el cono se ajustan en `PrototypeEnemyParry`. `Deflected Recovery Duration` del `PrototypePlayerAttack` define la recuperación tras ser desviado. Los valores iniciales hacen visible la guardia y dejan una respuesta posible; no se consideran balance definitivo ni se atribuyen a reglas exactas de otro juego. La adaptación del Duelista a repeticiones queda pendiente para el siguiente incremento, cuando ambos parrys tengan aceptación jugable.
+
+### Integración y relojes
+
+`PrototypeEnemyParry` gobierna su ventana y señales; `PrototypeEnemyAttack` gobierna el ataque normal y consume una solicitud de respuesta al conseguir el desvío. No se ejecutan defensa y ataque al mismo tiempo. Tras la recuperación normal del ataque, se rearma el turno defensivo. El inicio de la respuesta utiliza el instante del contacto, descontando únicamente el tiempo que realmente transcurrió después de ese evento dentro del frame.
+
+`PrototypeMeleeHitQuery` conserva una recepción común: primero revisa los triggers de defensa válidos de jugador y enemigo y después el daño corporal, ignorando triggers para daño. Sigue resolviendo orientación/obstrucción, objetivos ya alcanzados y daño único. Un desvío cancela el ataque entero, incluso con colliders adicionales. No se introduce una jerarquía genérica de estadísticas ni un framework de habilidades.
+
+`PrototypePlayerAttack` conserva `Phase` para su ataque e incorpora recuperación por desvío como estado ocupado. Movimiento, esquiva, parry y stamina consultan esa ocupación con sus guards existentes. Un identificador del ataque evita seguir avanzando fases si la consulta lo canceló, incluso cuando un frame largo ya atravesó toda la recuperación. El daño no reaparece ni se devuelve stamina. Su entrada comienza al ser procesada: no se consume retrospectivamente el delta anterior de una pulsación nueva.
+
+La presentación muestra primero contacto y luego retirada del arma del jugador. El enemigo muestra una postura defensiva y una transición hacia su preparación de respuesta. Los eventos de resultado alimentan `PrototypeParryFeedback` para ambos actores; no se añade una defensa de jugador al enemigo para reutilizar sonidos. El diagnóstico F3/F5 registra DEFENSA ENEMIGA iniciada, PARRY ENEMIGO exitoso, consulta desviada y ocupación del jugador. El modelo sigue usando cajas y geometría provisional, sin colisión continua del filo ni Animator.
+
+### Validación automatizada
+
+`PrototypeEnemyParryValidation` usa los componentes reales en Play y un reloj común para pasos de 30/60/120 FPS. Ensaya ataques con contacto anterior, dentro y posterior a la ventana; ambos últimos casos dejan dañar correctamente o desviar, según corresponda. También comprueba espalda, pared, volumen deshabilitado, defensa antes del cuerpo, colliders duplicados, ausencia de daño y refund al desviar, bloqueo/gravedad/stamina durante recuperación, respuesta que permite esquiva real o parry propio, contraataque durante exposición, alternancia fija, R/muerte y hitches sin golpe diferido.
+
+Las regresiones previas del rival original se ejecutan con la nueva defensa deshabilitada temporalmente en Play, y se restaura en `finally`; la escena guardada sigue con defensa activa. Después se ejecuta la suite nueva con defensa activa y las interacciones de ambos parrys. Esa separación verifica los sistemas anteriores y el comportamiento nuevo; no se presentan los resultados de la antigua arena como una partida del nuevo enemigo. Input Actions también comprueba rechazo y ausencia de cola durante recuperación por desvío. El runner exige `ENEMY_PARRY_VALIDATION_SUCCEEDED` además de los marcadores anteriores.
+
+### Prueba jugable
+
+1. R, acercarse al verde y observar la secuencia: ámbar → cian → gris → preparación violeta de ataque. Q/clic derecho sigue siendo el parry del jugador; cian en el enemigo corresponde a su defensa.
+2. Atacar de frente para que el golpe llegue durante cian: el enemigo no pierde vida, muestra blanco y suena el desvío. El arma del jugador retrocede, la HUD indica desviado y se conservan los 20 gastados. No hay daño instantáneo al jugador.
+3. Esperar o cambiar de ángulo y atacar durante gris o desde la espalda: el enemigo pierde 25. Cuatro golpes efectivos siguen derrotándolo; cuatro intentos pueden incluir desvíos y no garantizan victoria.
+4. Tras ser desviado, reaccionar al aviso violeta cuando termina la recuperación: esquivar para salir del volumen, o acertar un parry propio y contraatacar. Verificar también que E/Espacio/Q pulsados durante bloqueo no se ejecutan después.
+5. Comprobar R durante defensa y durante desvío, victoria/derrota, costos y regeneración. Usar F3/F4 para observar y F5 antes de R si un resultado resulta confuso. Volver a velocidad normal para aceptar el ritmo y los sonidos.
+
+Antes de añadir aprendizaje de repeticiones al Duelista, falta confirmar que la defensa, la vulnerabilidad posterior y la respuesta anunciada son legibles y que el jugador dispone de una oportunidad práctica para reaccionar.
+
+Validación técnica: EnemyParryValidationBuild.log confirmó todas las suites y ENEMY_PARRY_VALIDATION_SUCCEEDED. Build Windows: 0 errores, 486 advertencias, 73,21 s. Capturas de defensa activa, desvío y respuesta revisadas; no incluyen HUD OnGUI. La legibilidad, los sonidos y el balance del nuevo enemigo quedan pendientes de prueba humana.

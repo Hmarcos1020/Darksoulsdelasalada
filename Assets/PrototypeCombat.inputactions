@@ -148,6 +148,61 @@
           "path": "<Keyboard>/r",
           "groups": "",
           "processors": ""
+        },
+        {
+          "name": "",
+          "id": "1dfd237f-cc2a-48ac-aedf-d2c94b40e479",
+          "path": "<Keyboard>/f3",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "Diagnostics",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "51e76c1d-de46-416a-b800-59e6f7307a88",
+          "path": "<Keyboard>/f4",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "SlowMotion",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "82a30e73-b408-4a5d-9d5a-3691a472a18e",
+          "path": "<Keyboard>/f5",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "ExportTrace",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "ae856a9e-3d37-478a-9796-a6cfff05dc75",
+          "path": "<Keyboard>/q",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "Parry",
+          "isComposite": false,
+          "isPartOfComposite": false
+        },
+        {
+          "name": "",
+          "id": "28298dab-47fd-4ff4-b05b-a221bee373c1",
+          "path": "<Mouse>/rightButton",
+          "interactions": "",
+          "processors": "",
+          "groups": "",
+          "action": "Parry",
+          "isComposite": false,
+          "isPartOfComposite": false
         }
       ],
       "actions": [
@@ -186,6 +241,42 @@
           "name": "Restart",
           "id": "40e8e204-a338-491f-94b9-4792b0b50a2f",
           "interactions": ""
+        },
+        {
+          "name": "Diagnostics",
+          "type": "Button",
+          "id": "7fb7d26e-8e76-4276-87dd-5ea70987e852",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "",
+          "initialStateCheck": false
+        },
+        {
+          "name": "SlowMotion",
+          "type": "Button",
+          "id": "d698456c-0e05-4429-ba06-da9fb712eb6a",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "",
+          "initialStateCheck": false
+        },
+        {
+          "name": "ExportTrace",
+          "type": "Button",
+          "id": "481189ab-f484-4826-ab81-a221a33551f0",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "",
+          "initialStateCheck": false
+        },
+        {
+          "name": "Parry",
+          "type": "Button",
+          "id": "2e87307a-0ba4-4cf4-bc07-cedb6d776dc8",
+          "expectedControlType": "Button",
+          "processors": "",
+          "interactions": "",
+          "initialStateCheck": false
         }
       ]
     }
